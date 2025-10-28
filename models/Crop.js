@@ -2,12 +2,13 @@ import mongoose from "mongoose";
 
 const cropSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  soilTypes: [{ type: String, required: true }], // e.g. ["Loam", "Clay"]
-  waterRequirement: { type: String, enum: ["low", "moderate", "high"], required: true },
-  idealSeason: { type: String, enum: ["rainy", "dry"], required: true },
+  soilTypes: { type: [String], required: true },
+  waterRequirement: { type: String, required: true },
+  idealSeason: { type: String, required: true },
   oversupply: { type: Boolean, default: false },
-  description: { type: String, default: "" }, // short info
-  imageUrl: { type: String, default: "" }, // optional
-}, { timestamps: true });
+  description: { type: String },
+  minTemp: { type: Number, default: 0 },
+  maxTemp: { type: Number, default: 40 }
+}, { timestamps: true }); // adds createdAt and updatedAt
 
 export default mongoose.model("Crop", cropSchema);
