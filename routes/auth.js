@@ -56,17 +56,20 @@ router.post("/register", async (req, res) => {
 // 🔐 LOGIN USER
 router.post("/login", async (req, res) => {
   try {
-    const { phone, password } = req.body;
+    const { phone, username, password } = req.body;
 
-    if (!phone || !password) {
+    if ((!phone && !username) || !password) {
       return res.status(400).json({
         success: false,
-        message: "Missing phone or password",
+        message: "Missing username/phone or password",
       });
     }
 
-    // Find user by phone
-    const user = await User.findOne({ phone });
+    // ✅ Find user by username or phone
+    const user = await User.findOne({
+      $or: [{ phone }, { username }],
+    });
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -74,9 +77,10 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Compare password (hash check)
-    // For testing only — allow plain text match
-const validPassword = password === user.password || await bcrypt.compare(password, user.password);
+    // ✅ Compare password (support plain or hashed)
+    const validPassword =
+      password === user.password || (await bcrypt.compare(password, user.password));
+
     if (!validPassword) {
       return res.status(401).json({
         success: false,
@@ -84,7 +88,7 @@ const validPassword = password === user.password || await bcrypt.compare(passwor
       });
     }
 
-    // ✅ Success: return user info (no password)
+    // ✅ Return safe user object
     const safeUser = {
       _id: user._id,
       username: user.username,
