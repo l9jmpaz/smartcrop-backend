@@ -42,11 +42,11 @@ app.use("/api/yields", yieldRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/weather", weatherRoutes);
 app.use("/api/farm", farmRoutes);
-app.use(cors({origin: "*"}));
+app.use(cors({origin: "*",methods:["GET", "POST", "PUT", "DELETE"],allowedHeaders: ["Content-Type","Authorization"]}));
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
-const PORT = 5000;
+const PORT = process.env.PORT  || 5000;
 
 app.get("/", (req, res) => res.send("✅ SmartCrop backend is running!"));
 
