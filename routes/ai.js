@@ -91,7 +91,7 @@ router.get("/recommend/:userId", async (req, res) => {
         `Suitability Score: ${c.suitability}%`,
       ],
       warning: c.oversupply
-        ? `⚠ ${c.name} is currently oversupplied. Prices may drop`.
+        ? `⚠ ${c.name} is currently oversupplied. Prices may drop.`
         : null,
     }));
 
