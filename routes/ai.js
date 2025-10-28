@@ -3,7 +3,7 @@ import { getAIRecommendations } from "../controllers/aiController.js";
 
 const router = express.Router();
 
-// Route to get AI recommendations
+// ✅ Correct route path
 router.get("/recommend/:userId", getAIRecommendations);
 
 export default router;
