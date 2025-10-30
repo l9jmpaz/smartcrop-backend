@@ -46,6 +46,7 @@ const farmSchema = new mongoose.Schema(
       province: { type: String },
     },
 
+    
     // 🧠 Future-proof attributes
     notes: {
       type: String,
