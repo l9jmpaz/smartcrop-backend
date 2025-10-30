@@ -41,8 +41,8 @@ export const addTask = async (req, res) => {
       userId,
       date,
       type,
-      crop,
-      fieldName,
+      crop: crop || "",
+      fieldName: fieldName || "",
       completed: false,
       createdAt: new Date(),
     };
