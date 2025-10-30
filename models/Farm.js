@@ -46,7 +46,16 @@ const farmSchema = new mongoose.Schema(
       province: { type: String },
     },
 
-    
+    tasks: [
+      {
+        date: String,
+        type: String,
+        crop: String,
+        fieldName: String,
+        completed: {type: Boolean, default: false},
+        createdAt:{ type: Date, default: Date.now},
+      },
+    ],
     // 🧠 Future-proof attributes
     notes: {
       type: String,
