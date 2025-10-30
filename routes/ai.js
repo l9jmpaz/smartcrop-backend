@@ -95,6 +95,7 @@ router.get("/recommend/:userId", async (req, res) => {
         `Season: Ideal for ${season} months in Tanauan`,
         `Temperature: Ideal range ${c.minTemp}°C – ${c.maxTemp}°C`,
         `Suitability Score: ${c.suitability}%`,
+        `Seed Type: ${c.seedType}`,
        `🌾 Good until ${untilMonth}`,
       ],
       warning: c.oversupply
