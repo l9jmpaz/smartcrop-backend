@@ -5,7 +5,18 @@ import Farm from "../models/Farm.js";
 import Crop from "../models/Crop.js";
 
 const router = express.Router();
-
+router.get("/oversupply", async (req, res) => {
+  try {
+    const crops = await Crop.find({ oversupply: true }).select("name");
+    res.json({
+      success: true,
+      data: crops.map((c) => c.name),
+    });
+  } catch (err) {
+    console.error("Oversupply fetch error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 router.get("/recommend/:userId", async (req, res) => {
   try {
     // 🔹 1. Get User
