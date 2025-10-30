@@ -1,62 +1,57 @@
 import express from "express";
+import Farm from "../models/Farm.js";
 import {
   getFarmByUser,
   updateFarm,
   addFarmField,
   updateFieldById,
   deleteFieldById,
+  addTask,
+  getTasksByUser,
+  completeTask,
 } from "../controllers/farmController.js";
 
 const router = express.Router();
 
-// 🧩 Debug Route
-router.get("/debug", (req, res) => res.send("Farm Route Mounted Correctly!"));
+// 🧭 Debug route
+router.get("/debug", (req, res) => res.send("✅ Farm Route Mounted Correctly!"));
 
 // 🟢 Fetch all farms by user ID
 router.get("/:userId", getFarmByUser);
+
+//
+// ──────────────────────────────────────────────
+//   🌾 CALENDAR TASKS (used by CalendarTab.dart)
+// ──────────────────────────────────────────────
+//
+
 // 🟢 Add new calendar task
-router.post("/tasks", async (req, res) => {
-  try {
-    const { userId, date, type, crop, fieldName } = req.body;
-    if (!userId || !date || !type) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
-
-    const task = {
-      userId,
-      date,
-      type,
-      crop: crop || "N/A",
-      fieldName: fieldName || "",
-      completed: false,
-      createdAt: new Date(),
-    };
-
-    // 💾 Save to MongoDB (using your Task or Farm model)
-    const saved = await Farm.updateOne(
-      { userId },
-      { $push: { tasks: task } },
-      { upsert: true }
-    );
-
-    res.status(201).json({ success: true, task });
-  } catch (err) {
-    console.error("❌ Error adding task:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
+router.post("/tasks", addTask);
+router.get("/tasks/:userId", getTasksByUser);
+router.patch("tasks/:id/complete", completeTask);
 
 
-// 🟢 Add new field
+// 🟢 Get all tasks for a user (used in CalendarTab)
+
+
+// 🟢 Mark a task complete
+
+//
+// ──────────────────────────────────────────────
+//   🌱 FARM MANAGEMENT ROUTES
+// ──────────────────────────────────────────────
+//
+
+// ➕ Add new field
 router.post("/add", addFarmField);
 
-// 🟢 Update user's main farm (legacy)
+// ✏️ Update user's main farm (legacy)
 router.put("/update/:userId", updateFarm);
 
-// 🟢 Update field by farm ID
+// ✏️ Update field by ID
 router.put("/update-field/:id", updateFieldById);
 
-// 🟢 Delete field by ID
+// 🗑️ Delete field by ID
 router.delete("/delete/:id", deleteFieldById);
 
 export default router;
