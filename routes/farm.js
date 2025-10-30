@@ -1,57 +1,56 @@
 import express from "express";
 import Farm from "../models/Farm.js";
-import {
-  getFarmByUser,
-  updateFarm,
-  addFarmField,
-  updateFieldById,
-  deleteFieldById,
-  addTask,
-  getTasksByUser,
-  completeTask,
-} from "../controllers/farmController.js";
 
 const router = express.Router();
 
-// 🧭 Debug route
-router.get("/debug", (req, res) => res.send("✅ Farm Route Mounted Correctly!"));
+// 🟢 Add a task to a specific farm (field)
+router.post("/tasks", async (req, res) => {
+  try {
+    const { userId, fieldId, fieldName, date, type, crop } = req.body;
 
-// 🟢 Fetch all farms by user ID
-router.get("/:userId", getFarmByUser);
+    if (!userId || !fieldId || !date || !type) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields (userId, fieldId, date, or type).",
+      });
+    }
 
-//
-// ──────────────────────────────────────────────
-//   🌾 CALENDAR TASKS (used by CalendarTab.dart)
-// ──────────────────────────────────────────────
-//
+    // Build the task object
+    const task = {
+      userId,
+      fieldName,
+      date,
+      type,
+      crop: crop || "",
+      completed: false,
+      createdAt: new Date(),
+    };
 
-// 🟢 Add new calendar task
-router.post("/tasks", addTask);
-router.get("/tasks/:userId", getTasksByUser);
-router.patch("tasks/:id/complete", completeTask);
+    // ✅ Find by farm ID, not by user ID
+    const farm = await Farm.findById(fieldId);
+    if (!farm) {
+      return res.status(404).json({
+        success: false,
+        message: "Farm not found for that fieldId.",
+      });
+    }
 
+    // Push new task into the farm's tasks array
+    farm.tasks.push(task);
+    await farm.save();
 
-// 🟢 Get all tasks for a user (used in CalendarTab)
-
-
-// 🟢 Mark a task complete
-
-//
-// ──────────────────────────────────────────────
-//   🌱 FARM MANAGEMENT ROUTES
-// ──────────────────────────────────────────────
-//
-
-// ➕ Add new field
-router.post("/add", addFarmField);
-
-// ✏️ Update user's main farm (legacy)
-router.put("/update/:userId", updateFarm);
-
-// ✏️ Update field by ID
-router.put("/update-field/:id", updateFieldById);
-
-// 🗑️ Delete field by ID
-router.delete("/delete/:id", deleteFieldById);
+    return res.status(201).json({
+      success: true,
+      message: "Task added successfully!",
+      task,
+    });
+  } catch (err) {
+    console.error("❌ Error adding task:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while adding task.",
+    });
+  }
+});
 
 export default router;
