@@ -8,35 +8,58 @@ const farmSchema = new mongoose.Schema(
       required: true,
     },
 
-    // 🌾 Basic Info
-    farmName: { type: String, required: true, default: "Main Farm" },
-    fieldName: { type: String, default: "" },
-    farmSize: { type: String, default: "" },
-    fieldSize: { type: String, default: "" }, // 👈 for CropScreen
-    numFields: { type: String, default: "" },
-
-    // 🌱 Crop Details
-    soilType: { type: String, default: "" },
-    wateringMethod: { type: String, default: "" }, // 👈 Added
-    lastYearCrop: { type: String, default: "" },   // 👈 Added
-    cropType: { type: String, default: "" },
-
-    // 📍 Location (Optional)
-    location: {
-      lat: { type: Number },
-      lng: { type: Number },
+    fieldName: {
+      type: String,
+      required: [true, "Field name is required"],
+      trim: true,
     },
 
-    // 📊 Optional: yield tracking
-    yields: [
-      {
-        year: Number,
-        crop: String,
-        totalYield: Number, // in kg or tons
-      },
-    ],
+    soilType: {
+      type: String,
+      enum: ["Clay", "Sandy", "Loam", "Silty", "Peaty", "Chalky"],
+      default: "Clay",
+    },
+
+    wateringMethod: {
+      type: String,
+      enum: ["Sprinklers", "Drip", "Manual", "Flood", "Rainfed"],
+      default: "Manual",
+    },
+
+    lastYearCrop: {
+      type: String,
+      default: "None",
+    },
+
+    fieldSize: {
+      type: Number,
+      required: false,
+      default: 0,
+    },
+
+    // 🌍 Optional location coordinates (for weather API or mapping later)
+    location: {
+      latitude: { type: Number },
+      longitude: { type: Number },
+      barangay: { type: String },
+      city: { type: String },
+      province: { type: String },
+    },
+
+    // 🧠 Future-proof attributes
+    notes: {
+      type: String,
+      default: "",
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true, // ✅ Adds createdAt & updatedAt automatically
+  }
 );
 
-export default mongoose.model("Farm", farmSchema);
+// 🪶 Optional: create an index for faster queries by user
+farmSchema.index({ userId: 1 });
+
+const Farm = mongoose.model("Farm", farmSchema);
+
+export default Farm;
