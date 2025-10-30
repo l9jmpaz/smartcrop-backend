@@ -8,7 +8,8 @@ const cropSchema = new mongoose.Schema({
   oversupply: { type: Boolean, default: false },
   description: { type: String },
   minTemp: { type: Number, default: 0 },
-  maxTemp: { type: Number, default: 40 }
+  maxTemp: { type: Number, default: 40 },
+  seedType: { type: String, default: "Certified" },
 }, { timestamps: true }); // adds createdAt and updatedAt
 
 export default mongoose.model("Crop", cropSchema);
