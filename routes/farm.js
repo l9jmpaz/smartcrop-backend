@@ -14,6 +14,8 @@ router.get("/debug", (req, res) => res.send("Farm Route Mounted Correctly!"));
 
 // 🟢 Fetch all farms by user ID
 router.get("/:userId", getFarmByUser);
+router.post("/tasks", addTask);
+
 
 // 🟢 Add new field
 router.post("/add", addFarmField);
