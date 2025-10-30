@@ -14,7 +14,37 @@ router.get("/debug", (req, res) => res.send("Farm Route Mounted Correctly!"));
 
 // 🟢 Fetch all farms by user ID
 router.get("/:userId", getFarmByUser);
-router.post("/tasks", addTask);
+// 🟢 Add new calendar task
+router.post("/tasks", async (req, res) => {
+  try {
+    const { userId, date, type, crop, fieldName } = req.body;
+    if (!userId || !date || !type) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const task = {
+      userId,
+      date,
+      type,
+      crop: crop || "N/A",
+      fieldName: fieldName || "",
+      completed: false,
+      createdAt: new Date(),
+    };
+
+    // 💾 Save to MongoDB (using your Task or Farm model)
+    const saved = await Farm.updateOne(
+      { userId },
+      { $push: { tasks: task } },
+      { upsert: true }
+    );
+
+    res.status(201).json({ success: true, task });
+  } catch (err) {
+    console.error("❌ Error adding task:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 
 
 // 🟢 Add new field
