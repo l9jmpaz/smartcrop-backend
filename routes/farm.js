@@ -19,7 +19,7 @@ router.put("/:id", updateFieldById);
 // 🟢 TASK ROUTES
 router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
-router.patch("/tasks/complete/:id", completeTask);
+router.patch("/tasks/:id/complete", completeTask);
 
 // 🟢 UPDATE DEFAULT FARM
 router.put("/update/:userId", updateFarm);
