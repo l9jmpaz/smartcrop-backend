@@ -38,15 +38,16 @@ const farmSchema = new mongoose.Schema(
 
     // 🌾 FIX: this must be an array of objects, not strings
     tasks: [
-      {
-        date: String,
-        type: String,
-        crop: String,
-        fieldName: String,
-        completed: { type: Boolean, default: false },
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    type: String,
+    crop: String,
+    date: Date,
+    fieldName: String,
+    completed: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now },
+  },
+],
 
     location: {
       latitude: Number,

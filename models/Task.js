@@ -5,6 +5,7 @@ const taskSchema = new mongoose.Schema({
   taskType: { type: String, required: true },
   crop: { type: String, required: true },
   date: { type: Date, required: true },
+  fieldName: { type: String, default: "Unknown Field" }, // ✅ added
 });
 
 export default mongoose.model("Task", taskSchema);

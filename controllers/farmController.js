@@ -30,13 +30,19 @@ export const getFarmByUser = async (req, res) => {
   }
 };
 // ✅ Add new task to a user's farm
+// ✅ Add new task to a specific farm field
 export const addTask = async (req, res) => {
   try {
-    const { userId, date, type, crop, fieldName } = req.body;
-    if (!userId || !date || !type) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+    const { userId, fieldId, fieldName, date, type, crop } = req.body;
+
+    if (!userId || !fieldId || !date || !type) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields (userId, fieldId, date, or type).",
+      });
     }
 
+    // ✅ Build the task object
     const task = {
       userId,
       date,
@@ -46,19 +52,31 @@ export const addTask = async (req, res) => {
       completed: false,
       createdAt: new Date(),
     };
-  
-    
-    // Add to the specific user's first farm (or create one if none)
-    const saved = await Farm.findOneAndUpdate(
-      { userId },
-      { $push: { tasks: task } },
-      { upsert: true, new: true }
-    );
 
-    res.status(201).json({ success: true, task });
+    // ✅ Find farm by fieldId (so it targets the correct field)
+    const farm = await Farm.findById(fieldId);
+    if (!farm) {
+      return res.status(404).json({
+        success: false,
+        message: "Farm field not found for the given fieldId.",
+      });
+    }
+
+    // ✅ Add the task to that field
+    farm.tasks.push(task);
+    await farm.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Task added successfully.",
+      task,
+    });
   } catch (err) {
     console.error("❌ Error adding task:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({
+      success: false,
+      message: "Server error while adding task.",
+    });
   }
 };
 

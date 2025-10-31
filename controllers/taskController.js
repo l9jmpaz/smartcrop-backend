@@ -1,15 +1,32 @@
 import Task from "../models/Task.js";
 
 // ➕ Add new task
+// ➕ Add new task
 export const addTask = async (req, res) => {
   try {
-    const { userId, taskType, crop, date } = req.body;
+    const { userId, type, taskType, crop, date, fieldName } = req.body;
 
-    const task = await Task.create({ userId, taskType, crop, date });
-    res.json({ success: true, task });
+    // support both type and taskType
+    const finalTaskType = taskType || type;
+    if (!userId || !finalTaskType || !date) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields (userId, taskType/type, date)",
+      });
+    }
+
+    const task = await Task.create({
+      userId,
+      taskType: finalTaskType,
+      crop: crop || "Unspecified",
+      date,
+      fieldName: fieldName || "Unknown Field",
+    });
+
+    res.status(201).json({ success: true, task });
   } catch (err) {
     console.error("❌ Add task error:", err);
-    res.status(500).json({ success: false, message: "Failed to add task" });
+    res.status(500).json({ success: false, message: "Server error while adding task" });
   }
 };
 
