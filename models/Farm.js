@@ -1,53 +1,37 @@
 import mongoose from "mongoose";
 
+const taskSubSchema = new mongoose.Schema(
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    type: { type: String, required: true },
+    crop: { type: String, default: "" },
+    date: { type: Date, required: true },
+    fieldName: { type: String },
+    completed: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const farmSchema = new mongoose.Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    fieldName: {
-      type: String,
-      required: [true, "Field name is required"],
-      trim: true,
-    },
-
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    fieldName: { type: String, required: true, trim: true },
     soilType: {
       type: String,
       enum: ["Clay", "Sandy", "Loam", "Silty", "Peaty", "Chalky"],
       default: "Clay",
     },
-
     wateringMethod: {
       type: String,
       enum: ["Sprinklers", "Drip", "Manual", "Flood", "Rainfed"],
       default: "Manual",
     },
+    lastYearCrop: { type: String, default: "None" },
+    fieldSize: { type: Number, default: 0 },
 
-    lastYearCrop: {
-      type: String,
-      default: "None",
-    },
-
-    fieldSize: {
-      type: Number,
-      default: 0,
-    },
-
-    // 🌾 FIX: this must be an array of objects, not strings
-    tasks: [
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    type: String,
-    crop: String,
-    date: Date,
-    fieldName: String,
-    completed: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
-  },
-],
+    // ✅ Proper subdocument array
+    tasks: { type: [taskSubSchema], default: [] },
 
     location: {
       latitude: Number,
@@ -56,11 +40,7 @@ const farmSchema = new mongoose.Schema(
       city: String,
       province: String,
     },
-
-    notes: {
-      type: String,
-      default: "",
-    },
+    notes: { type: String, default: "" },
   },
   { timestamps: true }
 );
