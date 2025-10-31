@@ -5,6 +5,8 @@ import Farm from "../models/Farm.js";
 import Crop from "../models/Crop.js";
 
 const router = express.Router();
+
+// 🟢 Fetch oversupply crops
 router.get("/oversupply", async (req, res) => {
   try {
     const crops = await Crop.find({ oversupply: true }).select("name");
@@ -17,31 +19,25 @@ router.get("/oversupply", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
+
+// 🧠 Main AI Recommendation Route (Now per-field)
 router.get("/recommend/:userId", async (req, res) => {
   try {
-    // 🔹 1. Get User
+    // 🔹 1. Validate User
     const user = await User.findById(req.params.userId);
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    // 🔹 2. Get Farm & Soil Type
-    const farm = await Farm.findOne({ userId: req.params.userId });
-    if (!farm)
+    // 🔹 2. Get all Farms of the User
+    const farms = await Farm.find({ userId: req.params.userId });
+    if (!farms.length)
       return res.json({
         success: true,
-        message: "No farm found for this user.",
+        message: "No fields found for this user.",
         data: [],
       });
 
-    const soilType = farm.soilType;
-    if (!soilType)
-      return res.json({
-        success: true,
-        message: "Farm has no soilType set.",
-        data: [],
-      });
-
-    // 🔹 3. Get Weather in Tanauan City
+    // 🔹 3. Fetch Weather (Tanauan City default)
     const city = "Tanauan City";
     const apiKey = process.env.OPENWEATHER_KEY;
     const weatherRes = await axios.get(
@@ -53,68 +49,94 @@ router.get("/recommend/:userId", async (req, res) => {
     const month = new Date().getMonth() + 1;
     const season = month >= 6 && month <= 11 ? "rainy" : "dry";
 
-    // 🔹 4. Get Crops That Match Soil, Season, and Temperature
-    let crops = await Crop.find({
-      soilTypes: { $in: [soilType] },
-      idealSeason: season,
-      minTemp: { $lte: temp },
-      maxTemp: { $gte: temp },
-    });
+    console.log(`Weather in ${city}: ${temp}°C, ${condition}, ${season} season`);
 
-    if (!crops.length) {
-      return res.json({
-        success: true,
-        message: "No matching crops found for your soil, season, and temperature.",
-        weather: { city, temp, condition },
-        data: [],
+    // 🔹 4. Load all Crops
+    const allCrops = await Crop.find({});
+    console.log("🌾 Total Crops in DB:", allCrops.length);
+
+    // 🔹 5. Generate Recommendations for Each Farm Field
+    const allFieldRecommendations = [];
+
+    for (const farm of farms) {
+      const soilType = (farm.soilType || "").toLowerCase();
+      const fieldName = farm.fieldName || "Unnamed Field";
+
+      // ✅ Case-insensitive match
+      let matched = allCrops.filter((crop) => {
+        const soilMatch = crop.soilTypes
+          ?.map((s) => s.toLowerCase())
+          .includes(soilType);
+        const seasonMatch =
+          (crop.idealSeason || "").toLowerCase() === season.toLowerCase();
+        const tempMatch = crop.minTemp <= temp && crop.maxTemp >= temp;
+        return soilMatch && seasonMatch && tempMatch;
       });
+
+      // 🟡 Broader soil-type fallback
+      if (!matched.length) {
+        matched = allCrops.filter((crop) =>
+          crop.soilTypes
+            ?.map((s) => s.toLowerCase())
+            .includes(soilType)
+        );
+      }
+
+      // 🟡 Random fallback if still empty
+      if (!matched.length) {
+        matched = allCrops.sort(() => 0.5 - Math.random()).slice(0, 3);
+      }
+
+      // ✅ Compute suitability
+      matched = matched.map((c) => {
+        const midRange = (c.minTemp + c.maxTemp) / 2;
+        const deviation = Math.abs(temp - midRange);
+        const idealRange = (c.maxTemp - c.minTemp) / 2;
+        const suitability = Math.max(
+          0,
+          Math.min(100, 100 - (deviation / idealRange) * 50)
+        );
+        return { ...c.toObject(), suitability: Math.round(suitability) };
+      });
+
+      // ✅ Sort & pick top 3
+      matched.sort((a, b) => b.suitability - a.suitability);
+      const selected = matched.slice(0, 3);
+
+      // ✅ Build field-specific recommendations
+      const untilMonth = season === "rainy" ? "December 2025" : "May 2026";
+
+      const fieldRecommendations = selected.map((c) => ({
+        title: c.oversupply
+          ? `${c.name} - Consider Alternative`
+          : `${c.name} - Good Option`,
+        color: c.oversupply ? "orange" : "green",
+        details: [
+          `Field: ${fieldName}`,
+          `Soil: Suitable for ${farm.soilType} soil`,
+          `Water: ${c.waterRequirement} requirement`,
+          `Season: Ideal for ${season} months in ${city}`,
+          `Temperature: Ideal range ${c.minTemp}°C – ${c.maxTemp}°C`,
+          `Suitability Score: ${c.suitability}%`,
+          `Seed Type: ${c.seedType}`,
+         `🌾 Good until ${untilMonth}`,
+        ],
+        warning: c.oversupply
+          ? `⚠ ${c.name} is currently oversupplied. Prices may drop.`
+          : null,
+      }));
+
+      // Push this field’s result
+      allFieldRecommendations.push({
+        fieldName,
+        soilType: farm.soilType,
+        recommendations: fieldRecommendations,
+      });
+
+      console.log(`✅ ${fieldName} — ${selected.length} crops recommended`);
     }
 
-    // 🔹 5. Compute Temperature Suitability Score (0–100%)
-    crops = crops.map((c) => {
-      const midRange = (c.minTemp + c.maxTemp) / 2;
-      const deviation = Math.abs(temp - midRange);
-      const idealRange = (c.maxTemp - c.minTemp) / 2;
-      const suitability = Math.max(
-        0,
-        Math.min(100, 100 - (deviation / idealRange) * 50)
-      );
-      return { ...c.toObject(), suitability: Math.round(suitability) };
-    });
-
-    // 🔹 6. Sort by Best Suitability Score (Highest first)
-    crops.sort((a, b) => b.suitability - a.suitability);
-
-    // 🔹 7. Pick up to 3 crops (randomized slightly)
-    const selected = crops.sort(() => 0.5 - Math.random()).slice(0, 3);
-
-    // 🔹 8. Determine “Good Until” Date
-    const untilMonth =
-      season === "rainy"
-        ? "December 2025"
-        : "May 2026"; // 🌤 adjustable for your cycle
-
-    // 🔹 9. Build Recommendations
-    const recommendations = selected.map((c) => ({
-      title: c.oversupply
-        ? `${c.name} - Consider Alternative`
-        : `${c.name} - Good Option`,
-      color: c.oversupply ? "orange" : "green",
-      details: [
-        `Soil: Suitable for ${soilType} soil`,
-        `Water: ${c.waterRequirement} requirement`,
-        `Season: Ideal for ${season} months in Tanauan`,
-        `Temperature: Ideal range ${c.minTemp}°C – ${c.maxTemp}°C`,
-        `Suitability Score: ${c.suitability}%`,
-        `Seed Type: ${c.seedType}`,
-       `🌾 Good until ${untilMonth}`,
-      ],
-      warning: c.oversupply
-        ? `⚠ ${c.name} is currently oversupplied. Prices may drop.`
-        : null,
-    }));
-
-    // 🔹 10. Generate Smart Weather Tip
+    // 🔹 6. Weather tip (same for all)
     let weatherTip = "";
     if (condition.includes("rain") && season === "dry") {
       weatherTip =
@@ -129,18 +151,19 @@ router.get("/recommend/:userId", async (req, res) => {
       weatherTip =
         "Cooler than usual — ideal for leafy vegetables but avoid heat-loving crops.";
     } else {
-      weatherTip = "Weather conditions remain stable and suitable for most crops.";
+      weatherTip =
+        "Weather conditions remain stable and suitable for most crops.";
     }
 
-    // 🔹 11. Send JSON Response
+    // 🔹 7. Respond
     res.json({
       success: true,
       weather: { city, temp, condition },
-      weatherTip, // ✅ new
-      data: recommendations,
+      weatherTip,
+      data: allFieldRecommendations, // ✅ field-based results
     });
   } catch (err) {
-    console.error("AI recommend error:", err);
+    console.error("❌ AI recommend error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
