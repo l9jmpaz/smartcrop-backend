@@ -31,47 +31,46 @@ export const getFarmByUser = async (req, res) => {
 };
 // ✅ Add new task to a user's farm
 // ✅ Add new task to a specific farm field
+// ✅ Add new task to a specific field (farm)
 export const addTask = async (req, res) => {
   try {
-    console.log("📥 Incoming /farm/tasks body:", req.body);
-
     const { userId, fieldId, fieldName, date, type, crop } = req.body;
+
+    // 🧠 Validation
     if (!userId || !fieldId || !date || !type) {
-      console.log("❌ Missing fields");
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields (userId, fieldId, date, or type).",
+      });
     }
 
+    // 🪴 Find the exact farm using fieldId
     const farm = await Farm.findById(fieldId);
     if (!farm) {
-      console.log("❌ Farm not found:", fieldId);
-      return res.status(404).json({ success: false, message: "Farm not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Farm not found for this fieldId.",
+      });
     }
 
-    console.log("✅ Farm found:", farm.fieldName || farm._id);
-
+    // ✅ Build the task object
     const task = {
       userId,
       date,
       type,
       crop: crop || "",
-      fieldName: fieldName || farm.fieldName || "",
+      fieldName: fieldName || farm.fieldName,
       completed: false,
       createdAt: new Date(),
     };
 
-    console.log("📦 Pushing task:", task);
-
-    // ensure tasks array exists
-    if (!Array.isArray(farm.tasks)) farm.tasks = [];
-
+    // ✅ Push to that farm’s tasks array
     farm.tasks.push(task);
     await farm.save();
 
-    console.log("✅ Task saved successfully!");
-
     return res.status(201).json({
       success: true,
-      message: "Task added successfully.",
+      message: "Task added successfully!",
       task,
     });
   } catch (err) {
