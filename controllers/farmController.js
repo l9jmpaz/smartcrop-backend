@@ -33,49 +33,53 @@ export const getFarmByUser = async (req, res) => {
 // ✅ Add new task to a specific farm field
 export const addTask = async (req, res) => {
   try {
-    const { userId, fieldId, fieldName, date, type, crop } = req.body;
+    console.log("📥 Incoming /farm/tasks body:", req.body);
 
+    const { userId, fieldId, fieldName, date, type, crop } = req.body;
     if (!userId || !fieldId || !date || !type) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields (userId, fieldId, date, or type).",
-      });
+      console.log("❌ Missing fields");
+      return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    // ✅ Build the task object
+    const farm = await Farm.findById(fieldId);
+    if (!farm) {
+      console.log("❌ Farm not found:", fieldId);
+      return res.status(404).json({ success: false, message: "Farm not found" });
+    }
+
+    console.log("✅ Farm found:", farm.fieldName || farm._id);
+
     const task = {
       userId,
       date,
       type,
       crop: crop || "",
-      fieldName: fieldName || "",
+      fieldName: fieldName || farm.fieldName || "",
       completed: false,
       createdAt: new Date(),
     };
 
-    // ✅ Find farm by fieldId (so it targets the correct field)
-    const farm = await Farm.findById(fieldId);
-    if (!farm) {
-      return res.status(404).json({
-        success: false,
-        message: "Farm field not found for the given fieldId.",
-      });
-    }
+    console.log("📦 Pushing task:", task);
 
-    // ✅ Add the task to that field
+    // ensure tasks array exists
+    if (!Array.isArray(farm.tasks)) farm.tasks = [];
+
     farm.tasks.push(task);
     await farm.save();
 
-    res.status(201).json({
+    console.log("✅ Task saved successfully!");
+
+    return res.status(201).json({
       success: true,
       message: "Task added successfully.",
       task,
     });
   } catch (err) {
     console.error("❌ Error adding task:", err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error while adding task.",
+      error: err.message,
     });
   }
 };
