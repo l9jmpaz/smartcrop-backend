@@ -52,6 +52,9 @@ router.get("/recommend/:userId", async (req, res) => {
     const condition = weather.weather[0].description;
     const month = new Date().getMonth() + 1;
     const season = month >= 6 && month <= 11 ? "rainy" : "dry";
+    console.log("🌱 Farm Soil Type:", soilType);
+console.log("🌦 Season:", season);
+console.log("🌡 Temp:", temp);
 
     // 🔹 4. Get Crops That Match Soil, Season, and Temperature
     let crops = await Crop.find({
@@ -94,7 +97,7 @@ router.get("/recommend/:userId", async (req, res) => {
         ? "December 2025"
         : "May 2026"; // 🌤 adjustable for your cycle
 
-        
+
     // 🔹 9. Build Recommendations
     const recommendations = selected.map((c) => ({
       title: c.oversupply
