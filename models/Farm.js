@@ -9,6 +9,7 @@ const taskSubSchema = new mongoose.Schema({
   fieldName: { type: String },
   completed: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
+  kilos: {type: Number, default: 0},
 });
 
 
