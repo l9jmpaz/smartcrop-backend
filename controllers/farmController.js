@@ -92,6 +92,7 @@ export const getTasksByUser = async (req, res) => {
     // 🧩 Combine all nested tasks
     const allTasks = farms.flatMap(farm =>
       farm.tasks.map(task => ({
+        _id: tasks._id,
         ...task.toObject(),
         fieldId: farm._id,
         fieldName: farm.fieldName,
