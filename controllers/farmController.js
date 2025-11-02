@@ -89,21 +89,39 @@ export const addTask = async (req, res) => {
 // ✅ Fetch all tasks for a specific user
 export const getTasksByUser = async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const { userId } = req.params;
+
+    // 🧠 Find all farms belonging to this user
     const farms = await Farm.find({ userId });
 
     if (!farms || farms.length === 0) {
-      return res.status(200).json({ success: true, tasks: [] });
+      return res.status(404).json({ success: false, message: "No farms found for this user." });
     }
 
-    // Merge all farm tasks into one array
-    const tasks = farms.flatMap(f => f.tasks || []);
-    res.status(200).json({ success: true, tasks });
+    // 🧩 Combine all nested tasks
+    const allTasks = farms.flatMap(farm =>
+      farm.tasks.map(task => ({
+        ...task.toObject(),
+        fieldId: farm._id,
+        fieldName: farm.fieldName,
+      }))
+    );
+
+    res.json({
+      success: true,
+      count: allTasks.length,
+      tasks: allTasks,
+    });
   } catch (err) {
     console.error("❌ Error fetching tasks:", err);
-    res.status(500).json({ success: false, message: "Server error while fetching tasks." });
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching tasks.",
+      error: err.message,
+    });
   }
 };
+
 
 // ✅ Mark a task as complete
 export const completeTask = async (req, res) => {
