@@ -216,32 +216,53 @@ export const updateFarm = async (req, res) => {
 };
 
 // ✅ Add new farm field (for multiple fields support)
+// ✅ Create a new Farm document for each field
 export const addFarmField = async (req, res) => {
   try {
-    const { userId, fieldName, soilType, wateringMethod, lastYearCrop, fieldSize, location } = req.body;
+    const {
+      userId,
+      fieldName,
+      soilType,
+      wateringMethod,
+      lastYearCrop,
+      fieldSize,
+      location,
+    } = req.body;
 
-    let farm = await Farm.findOne({ userId });
-
-    // 🟢 If no farm exists, create one automatically
-    if (!farm) {
-      farm = new Farm({ userId, fieldName, soilType, wateringMethod, lastYearCrop, fieldSize, location });
-    } else {
-      // 🟢 Otherwise, push a new field
-      farm.fieldName = fieldName;
-      farm.soilType = soilType;
-      farm.wateringMethod = wateringMethod;
-      farm.lastYearCrop = lastYearCrop;
-      farm.fieldSize = fieldSize;
-      farm.location = location;
+    if (!userId || !fieldName) {
+      return res
+        .status(400)
+        .json({ success: false, message: "userId and fieldName are required." });
     }
 
-    await farm.save();
-    res.status(201).json({ success: true, farm });
+    // 🟢 Create a new document (don't reuse existing one)
+    const newFarm = new Farm({
+      userId,
+      fieldName,
+      soilType,
+      wateringMethod,
+      lastYearCrop,
+      fieldSize,
+      location,
+    });
+
+    await newFarm.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Field added successfully!",
+      farm: newFarm,
+    });
   } catch (err) {
     console.error("❌ Error adding field:", err);
-    res.status(500).json({ success: false, message: "Server error while adding field" });
+    res.status(500).json({
+      success: false,
+      message: "Server error while adding field.",
+      error: err.message,
+    });
   }
 };
+
 
 // ✅ Update existing field by ID
 export const updateFieldById = async (req, res) => {
