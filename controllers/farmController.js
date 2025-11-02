@@ -37,7 +37,7 @@ export const getFarmByUser = async (req, res) => {
 // ✅ Add new task to a specific field (farm)
 export const addTask = async (req, res) => {
   try {
-    const { userId, fieldId, fieldName, date, type, crop } = req.body;
+    const { userId, fieldId, fieldName, date, type, crop, kilos } = req.body;
 
     if (!userId || !fieldId || !date || !type) {
       return res.status(400).json({ success: false, message: "Missing required fields." });
@@ -57,6 +57,7 @@ export const addTask = async (req, res) => {
   fieldName: fieldName || farm.fieldName,
   completed: false,
   createdAt: new Date(),
+  kilos: kilos ? Number(kilos) : 0,
 };
 
     farm.tasks.push(newTask);
