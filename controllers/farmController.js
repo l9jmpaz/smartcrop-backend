@@ -218,30 +218,28 @@ export const updateFarm = async (req, res) => {
 // ✅ Add new farm field (for multiple fields support)
 export const addFarmField = async (req, res) => {
   try {
-    const { userId, fieldName, soilType, wateringMethod, lastYearCrop, fieldSize } = req.body;
+    const { userId, fieldName, soilType, wateringMethod, lastYearCrop, fieldSize, location } = req.body;
 
-    const farm = new Farm({
-      userId,
-      fieldName,
-      soilType,
-      wateringMethod,
-      lastYearCrop,
-      fieldSize,
-    });
+    let farm = await Farm.findOne({ userId });
+
+    // 🟢 If no farm exists, create one automatically
+    if (!farm) {
+      farm = new Farm({ userId, fieldName, soilType, wateringMethod, lastYearCrop, fieldSize, location });
+    } else {
+      // 🟢 Otherwise, push a new field
+      farm.fieldName = fieldName;
+      farm.soilType = soilType;
+      farm.wateringMethod = wateringMethod;
+      farm.lastYearCrop = lastYearCrop;
+      farm.fieldSize = fieldSize;
+      farm.location = location;
+    }
 
     await farm.save();
-
-    res.status(201).json({
-      success: true,
-      farm,
-      message: "New farm field added successfully.",
-    });
+    res.status(201).json({ success: true, farm });
   } catch (err) {
-    console.error("❌ Error adding farm field:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while adding farm field.",
-    });
+    console.error("❌ Error adding field:", err);
+    res.status(500).json({ success: false, message: "Server error while adding field" });
   }
 };
 
