@@ -16,28 +16,30 @@ router.get("/oversupply", async (req, res) => {
     });
   } catch (err) {
     console.error("Oversupply fetch error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ success: false, message: "server_error" });
   }
 });
 
-// 🧠 Main AI Recommendation Route (Now per-field)
+// 🧠 Main AI Recommendation Route
 router.get("/recommend/:userId", async (req, res) => {
   try {
     // 🔹 1. Validate User
     const user = await User.findById(req.params.userId);
     if (!user)
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "user_not_found" });
 
-    // 🔹 2. Get all Farms of the User
+    // 🔹 2. Get Farms
     const farms = await Farm.find({ userId: req.params.userId });
     if (!farms.length)
       return res.json({
         success: true,
-        message: "No fields found for this user.",
+        message: "no_fields",
         data: [],
       });
 
-    // 🔹 3. Fetch Weather (Tanauan City default)
+    // 🔹 3. Weather
     const city = "Tanauan City";
     const apiKey = process.env.OPENWEATHER_KEY;
     const weatherRes = await axios.get(
@@ -49,20 +51,14 @@ router.get("/recommend/:userId", async (req, res) => {
     const month = new Date().getMonth() + 1;
     const season = month >= 6 && month <= 11 ? "rainy" : "dry";
 
-    console.log(`Weather in ${city}: ${temp}°C, ${condition}, ${season} season`);
-
-    // 🔹 4. Load all Crops
     const allCrops = await Crop.find({});
-    console.log("🌾 Total Crops in DB:", allCrops.length);
-
-    // 🔹 5. Generate Recommendations for Each Farm Field
     const allFieldRecommendations = [];
 
     for (const farm of farms) {
       const soilType = (farm.soilType || "").toLowerCase();
-      const fieldName = farm.fieldName || "Unnamed Field";
+      const fieldName = farm.fieldName || "unnamed_field";
 
-      // ✅ Case-insensitive match
+      // Filter crops
       let matched = allCrops.filter((crop) => {
         const soilMatch = crop.soilTypes
           ?.map((s) => s.toLowerCase())
@@ -73,21 +69,19 @@ router.get("/recommend/:userId", async (req, res) => {
         return soilMatch && seasonMatch && tempMatch;
       });
 
-      // 🟡 Broader soil-type fallback
+      // Broader fallback
       if (!matched.length) {
         matched = allCrops.filter((crop) =>
-          crop.soilTypes
-            ?.map((s) => s.toLowerCase())
-            .includes(soilType)
+          crop.soilTypes?.map((s) => s.toLowerCase()).includes(soilType)
         );
       }
 
-      // 🟡 Random fallback if still empty
+      // Random fallback
       if (!matched.length) {
         matched = allCrops.sort(() => 0.5 - Math.random()).slice(0, 3);
       }
 
-      // ✅ Compute suitability
+      // Compute suitability
       matched = matched.map((c) => {
         const midRange = (c.minTemp + c.maxTemp) / 2;
         const deviation = Math.abs(temp - midRange);
@@ -99,72 +93,58 @@ router.get("/recommend/:userId", async (req, res) => {
         return { ...c.toObject(), suitability: Math.round(suitability) };
       });
 
-      // ✅ Sort & pick top 3
+      // Sort & top 3
       matched.sort((a, b) => b.suitability - a.suitability);
       const selected = matched.slice(0, 3);
-
-      // ✅ Build field-specific recommendations
-      const untilMonth = season === "rainy" ? "December 2025" : "May 2026";
+      const untilMonth = season === "rainy" ? "december_2025" : "may_2026";
 
       const fieldRecommendations = selected.map((c) => ({
         title: c.oversupply
-          ? `${c.name} - Consider Alternative`
-          : `${c.name} - Good Option`,
+          ? `${c.name} - consider_alternative`
+          : `${c.name} - good_option`,
         color: c.oversupply ? "orange" : "green",
         details: [
-          `Field: ${fieldName}`,
-          `Soil: Suitable for ${farm.soilType} soil`,
-          `Water: ${c.waterRequirement} requirement`,
-          `Season: Ideal for ${season} months in ${city}`,
-          `Temperature: Ideal range ${c.minTemp}°C – ${c.maxTemp}°C`,
-          `Suitability Score: ${c.suitability}%`,
-          `Seed Type: ${c.seedType}`,
-         `🌾 Good until ${untilMonth}`,
+          `field_name:${fieldName}`,
+          `soil_suitable:${farm.soilType}`,
+          `water_req:${c.waterRequirement}`,
+          `ideal_for:${season}:${city}`,
+          `temp_range:${c.minTemp}:${c.maxTemp}`,
+          `suitability:${c.suitability}`,
+          `seed_type:${c.seedType}`,
+          `good_until:${untilMonth}`,
         ],
-        warning: c.oversupply
-          ? `⚠ ${c.name} is currently oversupplied. Prices may drop.`
-          : null,
+        warning: c.oversupply ? "oversupply_warning" : null,
       }));
 
-      // Push this field’s result
       allFieldRecommendations.push({
         fieldName,
         soilType: farm.soilType,
         recommendations: fieldRecommendations,
       });
-
-      console.log(`✅ ${fieldName} — ${selected.length} crops recommended`);
     }
 
-    // 🔹 6. Weather tip (same for all)
-    let weatherTip = "";
+    // Weather Tip (using keys)
+    let weatherTipKey = "weather_stable";
+
     if (condition.includes("rain") && season === "dry") {
-      weatherTip =
-        "Unexpected rain detected during dry season — reduce irrigation and check for possible fungus or root rot.";
+      weatherTipKey = "unexpected_rain_dry";
     } else if (condition.includes("clear") && season === "rainy") {
-      weatherTip =
-        "Dry spell during rainy season — consider additional watering to maintain soil moisture.";
+      weatherTipKey = "dry_spell_rainy";
     } else if (temp > 33) {
-      weatherTip =
-        "High temperature detected — use mulching or shade nets to protect delicate crops.";
+      weatherTipKey = "high_temp_warning";
     } else if (temp < 20) {
-      weatherTip =
-        "Cooler than usual — ideal for leafy vegetables but avoid heat-loving crops.";
-    } else {
-      weatherTip =
-        "Weather conditions remain stable and suitable for most crops.";
+      weatherTipKey = "cool_temp_advice";
     }
 
-    // 🔹 7. Respond
     res.json({
       success: true,
       weather: { city, temp, condition },
-      weatherTip,
-      data: allFieldRecommendations, // ✅ field-based results
+      weatherTip: weatherTipKey,
+      data: allFieldRecommendations,
     });
   } catch (err) {
     console.error("❌ AI recommend error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ success: false, message: "server_error" });
   }
 });
 
