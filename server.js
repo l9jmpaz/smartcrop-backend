@@ -18,7 +18,7 @@ import bcrypt from "bcryptjs";
 import User from "./models/User.js";
 import farmRoutes from "./routes/farm.js";
 import dashboardRoutes from "./routes/dashboard.js";
-import supportRoutes from "./routes/supportRoutes.js";
+import supportRoutes from "./routes/support.js";
 import aiRoutes from "./routes/ai.js";
 import activityRoutes from "./routes/activityRoutes.js";
 
