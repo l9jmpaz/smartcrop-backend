@@ -268,6 +268,57 @@ export const updateFieldById = async (req, res) => {
     });
   }
 };
+// ✅ Get yield per field (based on completed harvest tasks)
+export const getYieldStats = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const farms = await Farm.find({ userId });
+
+    if (!farms || farms.length === 0) {
+      return res.status(404).json({ success: false, message: "No farms found for user." });
+    }
+
+    const yields = [];
+
+    farms.forEach(farm => {
+      const harvests = farm.tasks.filter(t => 
+        t.type.toLowerCase() === "harvest" && t.completed && t.date
+      );
+
+      if (harvests.length > 0) {
+        const groupedByYear = {};
+        harvests.forEach(h => {
+          const year = new Date(h.date).getFullYear();
+          if (!groupedByYear[year]) groupedByYear[year] = [];
+          groupedByYear[year].push(h);
+        });
+
+        Object.keys(groupedByYear).forEach(year => {
+          const totalKilos = groupedByYear[year].reduce((sum, h) => sum + (h.kilos || 0), 0);
+          const area = farm.fieldSize || 1;
+          const yieldPerHectare = totalKilos / area;
+
+          yields.push({
+            fieldId: farm._id,
+            fieldName: farm.fieldName,
+            crop: farm.lastYearCrop,
+            year: parseInt(year),
+            yield: yieldPerHectare.toFixed(2),
+          });
+        });
+      }
+    });
+
+    return res.status(200).json({ success: true, yields });
+  } catch (err) {
+    console.error("❌ Error fetching yield stats:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error while calculating yields.",
+      error: err.message,
+    });
+  }
+};
 
 // ✅ Delete field by ID
 export const deleteFieldById = async (req, res) => {

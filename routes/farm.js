@@ -7,6 +7,7 @@ import {
   updateFarm,
   addFarmField,
   getYieldDataByUser,
+  getYieldStats,
   updateFieldById
 } from "../controllers/farmController.js";
 
@@ -25,5 +26,5 @@ router.patch("/tasks/:id/complete", completeTask);
 // 🟢 UPDATE DEFAULT FARM
 router.put("/update/:userId", updateFarm);
 router.get("/yields/:userId", getYieldDataByUser);
-
+router.get("/yields/:userId", getYieldStats);
 export default router;
