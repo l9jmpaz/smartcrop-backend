@@ -39,50 +39,27 @@ export const addTask = async (req, res) => {
   try {
     const { userId, fieldId, fieldName, date, type, crop } = req.body;
 
-    // 🧠 Validation
-    if (!userId || !fieldId || !date || !type) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields (userId, fieldId, date, or type).",
-      });
-    }
-
-    // 🪴 Find the exact farm using fieldId
     const farm = await Farm.findById(fieldId);
-    if (!farm) {
-      return res.status(404).json({
-        success: false,
-        message: "Farm not found for this fieldId.",
-      });
-    }
+    if (!farm) return res.status(404).json({ success: false, message: "Farm not found" });
 
-    // ✅ Build the task object
     const task = {
+      _id: new mongoose.Types.ObjectId(), // ✅ important fix
       userId,
       date,
       type,
-      crop: crop || "",
+      crop,
       fieldName: fieldName || farm.fieldName,
       completed: false,
       createdAt: new Date(),
     };
 
-    // ✅ Push to that farm’s tasks array
     farm.tasks.push(task);
     await farm.save();
 
-    return res.status(201).json({
-      success: true,
-      message: "Task added successfully!",
-      task,
-    });
+    return res.status(201).json({ success: true, task });
   } catch (err) {
     console.error("❌ Error adding task:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while adding task.",
-      error: err.message,
-    });
+    res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
 
