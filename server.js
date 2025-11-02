@@ -30,7 +30,7 @@ app.use(express.json());
 app.use(express.urlencoded({ exended: true}));
 // ✅ Mount routes
 app.use("/api/activities", activityRoutes);
-app.use("api/support", supportRoutes);
+app.use("/api/support", supportRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/ai" , aiRoutes);
 app.use("/api/dashboard", dashboardRoutes);
