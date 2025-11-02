@@ -48,16 +48,16 @@ export const addTask = async (req, res) => {
       return res.status(404).json({ success: false, message: "Farm not found." });
     }
 
-    const newTask = {
-      _id: new mongoose.Types.ObjectId(),
-      userId: new mongoose.Types.ObjectId(userId),
-      type,
-      crop,
-      date: new Date(`{$date}T12:00:00Z`),
-      fieldName: fieldName || farm.fieldName,
-      completed: false,
-      createdAt: new Date(),
-    };
+   const newTask = {
+  _id: new mongoose.Types.ObjectId(),
+  userId: new mongoose.Types.ObjectId(userId),
+  type,
+  crop,
+  date: new Date(`${date}T12:00:00Z`), // ✅ timezone fix
+  fieldName: fieldName || farm.fieldName,
+  completed: false,
+  createdAt: new Date(),
+};
 
     farm.tasks.push(newTask);
     await farm.save();
@@ -84,22 +84,21 @@ export const getTasksByUser = async (req, res) => {
 
     // 🧠 Find all farms belonging to this user
     const farms = await Farm.find({ userId });
-
     if (!farms || farms.length === 0) {
-      return res.status(404).json({ success: false, message: "No farms found for this user." });
+      return res.status(200).json({ success: true, tasks: [] });
     }
 
-    // 🧩 Combine all nested tasks
-    const allTasks = farms.flatMap(farm =>
-      farm.tasks.map(task => ({
-        _id: tasks._id,
+    // 🧩 Safely merge tasks even if some farms have none
+    const allTasks = farms.flatMap((farm) =>
+      (farm.tasks || []).map((task) => ({
+        _id: task._id,
         ...task.toObject(),
         fieldId: farm._id,
         fieldName: farm.fieldName,
       }))
     );
 
-    res.json({
+    res.status(200).json({
       success: true,
       count: allTasks.length,
       tasks: allTasks,
