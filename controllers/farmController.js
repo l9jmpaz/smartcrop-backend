@@ -117,8 +117,8 @@ export const getTasksByUser = async (req, res) => {
 // ✅ Mark a task as complete
 export const completeTask = async (req, res) => {
   try {
-    const { id } = req.params; // this is the task _id (inside the farm.tasks array)
-     
+    const { id } = req.params; // this is the task _id (inside farm.tasks array)
+
     // 🧠 Find the farm that contains this task
     const farm = await Farm.findOne({ "tasks._id": id });
     if (!farm) {
@@ -136,12 +136,11 @@ export const completeTask = async (req, res) => {
         message: "Task not found in the farm.",
       });
     }
-debugPrint("🟢 Completing task ID: $id");
-debugPrint("➡️  API: $baseUrl/farm/tasks/$id/complete");
+
     task.completed = true;
     await farm.save();
 
-    res.json({
+    res.status(200).json({
       success: true,
       message: "Task marked as completed successfully!",
       task,
@@ -154,7 +153,7 @@ debugPrint("➡️  API: $baseUrl/farm/tasks/$id/complete");
       error: err.message,
     });
   }
-};
+}
 // ✅ Update or create a single default farm (for backward compatibility)
 export const updateFarm = async (req, res) => {
   try {
