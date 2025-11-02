@@ -18,7 +18,7 @@ import bcrypt from "bcryptjs";
 import User from "./models/User.js";
 import farmRoutes from "./routes/farm.js";
 import dashboardRoutes from "./routes/dashboard.js";
-import supportRoute from "./routes/supportRoute.js";
+import supportRoutes from "./routes/supportRoutes.js";
 import aiRoutes from "./routes/ai.js";
 import activityRoutes from "./routes/activityRoutes.js";
 
@@ -30,7 +30,7 @@ app.use(express.json());
 app.use(express.urlencoded({ exended: true}));
 // ✅ Mount routes
 app.use("/api/activities", activityRoutes);
-app.use("/api/support", supportRoute);
+app.use("/api/support", supportRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/ai" , aiRoutes);
 app.use("/api/dashboard", dashboardRoutes);
