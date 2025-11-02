@@ -1,17 +1,16 @@
 import mongoose from "mongoose";
 
-const taskSubSchema = new mongoose.Schema(
-  {
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    type: { type: String, required: true },
-    crop: { type: String, default: "" },
-    date: { type: Date, required: true },
-    fieldName: { type: String },
-    completed: { type: Boolean, default: false },
-    createdAt: { type: Date, default: Date.now },
-  },
-  { _id: false }
-);
+const taskSubSchema = new mongoose.Schema({
+  _id: { type: mongoose.Schema.Types.ObjectId, default: () => new mongoose.Types.ObjectId() }, // ✅ ensure ID exists
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  type: { type: String, required: true },
+  crop: { type: String, default: "" },
+  date: { type: Date, required: true },
+  fieldName: { type: String },
+  completed: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now },
+});
+
 
 const farmSchema = new mongoose.Schema(
   {

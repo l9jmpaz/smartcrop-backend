@@ -53,7 +53,7 @@ export const addTask = async (req, res) => {
       userId: new mongoose.Types.ObjectId(userId),
       type,
       crop,
-      date: new Date(date),
+      date: new Date(`{$date}T12:00:00Z`),
       fieldName: fieldName || farm.fieldName,
       completed: false,
       createdAt: new Date(),
