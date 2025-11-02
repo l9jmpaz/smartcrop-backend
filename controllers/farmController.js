@@ -1,5 +1,5 @@
 import Farm from "../models/Farm.js";
-
+import mongoose from "mongoose";
 // ✅ Fetch all farms owned by a specific user
 export const getFarmByUser = async (req, res) => {
   try {
@@ -39,27 +39,41 @@ export const addTask = async (req, res) => {
   try {
     const { userId, fieldId, fieldName, date, type, crop } = req.body;
 
-    const farm = await Farm.findById(fieldId);
-    if (!farm) return res.status(404).json({ success: false, message: "Farm not found" });
+    if (!userId || !fieldId || !date || !type) {
+      return res.status(400).json({ success: false, message: "Missing required fields." });
+    }
 
-    const task = {
-      _id: new mongoose.Types.ObjectId(), // ✅ important fix
-      userId,
-      date,
+    const farm = await Farm.findById(fieldId);
+    if (!farm) {
+      return res.status(404).json({ success: false, message: "Farm not found." });
+    }
+
+    const newTask = {
+      _id: new mongoose.Types.ObjectId(),
+      userId: new mongoose.Types.ObjectId(userId),
       type,
       crop,
+      date: new Date(date),
       fieldName: fieldName || farm.fieldName,
       completed: false,
       createdAt: new Date(),
     };
 
-    farm.tasks.push(task);
+    farm.tasks.push(newTask);
     await farm.save();
 
-    return res.status(201).json({ success: true, task });
+    return res.status(201).json({
+      success: true,
+      message: "Task added successfully.",
+      task: newTask,
+    });
   } catch (err) {
     console.error("❌ Error adding task:", err);
-    res.status(500).json({ success: false, message: "Server error", error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Server error while adding task.",
+      error: err.message,
+    });
   }
 };
 
