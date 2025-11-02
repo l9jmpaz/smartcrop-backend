@@ -77,7 +77,38 @@ export const addTask = async (req, res) => {
     });
   }
 };
+// ✅ Get yield data by user (for all fields)
+export const getYieldDataByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const farms = await Farm.find({ userId });
 
+    const yieldData = farms.map((farm) => {
+      const fieldSize = farm.fieldSize || 1;
+      const harvests = farm.tasks.filter(
+        (t) => t.type?.toLowerCase().includes("harvest") && t.kilos
+      );
+
+      const yearly = {};
+      harvests.forEach((t) => {
+        const year = new Date(t.date).getFullYear();
+        yearly[year] = (yearly[year] || 0) + t.kilos / fieldSize;
+      });
+
+      return {
+        fieldName: farm.fieldName,
+        yields: Object.entries(yearly).map(([year, y]) => ({
+          year: Number(year),
+          yield: y,
+        })),
+      };
+    });
+
+    res.json({ success: true, yieldData });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
 // ✅ Fetch all tasks for a specific user
 export const getTasksByUser = async (req, res) => {
   try {
