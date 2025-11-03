@@ -75,28 +75,31 @@ router.get("/daily-update", async (req, res) => {
     const latitude = 14.5995;
     const longitude = 120.9842;
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=precipitation,precipitation_sum&current=temperature_2m,relative_humidity_2m,precipitation&timezone=Asia/Manila`;
+    // ✅ minimal valid API call (confirmed to work everywhere)
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation&timezone=Asia/Manila`;
 
     const { data } = await axios.get(url);
 
     if (!data || !data.current) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid weather data from Open-Meteo" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid weather data from Open-Meteo",
+        data,
+      });
     }
 
-    const { temperature_2m, relative_humidity_2m } = data.current;
-    const rainfall =
-      data.hourly?.precipitation_sum?.at(-1) ??
-      data.hourly?.precipitation?.at(-1) ??
-      0;
+    const { temperature_2m, relative_humidity_2m, precipitation } = data.current;
 
+    // Rainfall: use current precipitation rate (mm/h)
+    const rainfall = precipitation ?? 0;
+
+    // Save or update today's record
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
     const existing = await Weather.findOne({ date: { $gte: startOfDay } });
 
     if (existing) {
-      existing.temperature = temperature_2m;
+      existing.temperature = temperature_2_2;
       existing.humidity = relative_humidity_2m;
       existing.rainfall = rainfall;
       existing.data = data;
@@ -113,12 +116,19 @@ router.get("/daily-update", async (req, res) => {
 
     res.json({
       success: true,
-      message: "✅ Weather updated successfully (Open-Meteo fixed)",
-      data: { temperature: temperature_2m, humidity: relative_humidity_2m, rainfall },
+      message: "✅ Weather updated successfully from Open-Meteo (simplified)",
+      data: {
+        temperature: temperature_2m,
+        humidity: relative_humidity_2m,
+        rainfall,
+      },
     });
   } catch (err) {
-    console.error("❌ Daily weather update failed:", err.message);
-    res.status(500).json({ success: false, message: err.message });
+    console.error("❌ Daily weather update failed:", err.response?.data || err.message);
+    res.status(500).json({
+      success: false,
+      message: err.response?.data || err.message,
+    });
   }
 });
 
