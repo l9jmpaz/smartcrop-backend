@@ -1,7 +1,7 @@
 // backend/routes/support.js
 import express from "express";
 import Support from "../models/Support.js";
-import Notification from "../models/Notification.js";
+
 const router = express.Router();
 
 // 📨 Send message from user (used by Flutter app)
@@ -23,11 +23,7 @@ router.post("/", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-await Notification.create({
-  title: "New Support Message",
-  message: `A user sent a message to admin support.`,
-  type: "user",
-});
+
 // 🧾 Get all messages (used by Admin Dashboard)
 router.get("/", async (req, res) => {
   try {
