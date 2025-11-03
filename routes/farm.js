@@ -17,11 +17,10 @@ const router = express.Router();
 // ✅ Get all farms (for Admin Dashboard)
 router.get("/", async (req, res) => {
   try {
-    const farms = await Farm.find(); // fetch all farms from database
+    const farms = await Farm.find().populate("userId", "username barangay");
     res.json({ success: true, farms });
   } catch (err) {
-    console.error("❌ Error fetching all farms:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
