@@ -1,11 +1,11 @@
-// backend/models/Notification.js
 import mongoose from "mongoose";
 
 const notificationSchema = new mongoose.Schema(
   {
-    title: String,
-    message: String,
-    type: { type: String, default: "info" }, // info, warning, error, etc.
+    title: { type: String, required: true },
+    message: { type: String, required: true },
+    type: { type: String, default: "general" }, // e.g., weather, alert, report
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     read: { type: Boolean, default: false },
   },
   { timestamps: true }

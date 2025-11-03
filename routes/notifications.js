@@ -1,10 +1,9 @@
-// backend/routes/notifications.js
 import express from "express";
 import Notification from "../models/Notification.js";
 
 const router = express.Router();
 
-// 🟢 Get all notifications
+// 🟢 Get all notifications (Admin dashboard)
 router.get("/", async (req, res) => {
   try {
     const notifications = await Notification.find().sort({ createdAt: -1 });
@@ -15,27 +14,31 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 🟡 Mark as read
+// 🟢 Add new notification
+router.post("/", async (req, res) => {
+  try {
+    const { title, message, type, userId } = req.body;
+    const newNotif = new Notification({ title, message, type, userId });
+    await newNotif.save();
+    res.status(201).json({ success: true, data: newNotif });
+  } catch (err) {
+    console.error("❌ Error creating notification:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// 🟢 Mark as read
 router.put("/:id/read", async (req, res) => {
   try {
-    const updated = await Notification.findByIdAndUpdate(
+    const notif = await Notification.findByIdAndUpdate(
       req.params.id,
       { read: true },
       { new: true }
     );
-    res.json({ success: true, data: updated });
+    if (!notif) return res.status(404).json({ success: false, message: "Not found" });
+    res.json({ success: true, data: notif });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to update" });
-  }
-});
-
-// 🔴 Delete a notification
-router.delete("/:id", async (req, res) => {
-  try {
-    await Notification.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: "Deleted" });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to delete" });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
