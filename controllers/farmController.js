@@ -1,5 +1,6 @@
 import Farm from "../models/Farm.js";
 import mongoose from "mongoose";
+import Notification from "../models/Notification.js";
 // ✅ Fetch all farms owned by a specific user
 export const getFarmByUser = async (req, res) => {
   try {
