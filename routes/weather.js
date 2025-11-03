@@ -99,7 +99,7 @@ router.get("/daily-update", async (req, res) => {
     const existing = await Weather.findOne({ date: { $gte: startOfDay } });
 
     if (existing) {
-      existing.temperature = temperature_2_2;
+      existing.temperature = temperature_2;
       existing.humidity = relative_humidity_2m;
       existing.rainfall = rainfall;
       existing.data = data;
@@ -114,6 +114,8 @@ router.get("/daily-update", async (req, res) => {
       });
     }
 
+
+    
     res.json({
       success: true,
       message: "✅ Weather updated successfully from Open-Meteo (simplified)",
