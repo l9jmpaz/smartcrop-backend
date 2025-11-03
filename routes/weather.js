@@ -80,6 +80,7 @@ router.get("/daily-update", async (req, res) => {
 
     const { data } = await axios.get(url);
 
+    
     if (!data || !data.current) {
       return res.status(400).json({
         success: false,
