@@ -12,6 +12,16 @@ import {
 } from "../controllers/farmController.js";
 
 const router = express.Router();
+// ✅ Get all farms (for Admin Dashboard)
+router.get("/", async (req, res) => {
+  try {
+    const farms = await Farm.find(); // fetch all farms from database
+    res.json({ success: true, farms });
+  } catch (err) {
+    console.error("❌ Error fetching all farms:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 
 // 🟢 FARM ROUTES
 router.get("/:userId", getFarmByUser);
