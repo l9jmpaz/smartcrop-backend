@@ -70,35 +70,37 @@ router.post("/save", async (req, res) => {
   }
 });
 
-// 🌤️ Auto-fetch and save today's weather from Open-Meteo
+// 🌤️ Auto-fetch and save today's weather from Open-Meteo (with rainfall fix)
 router.get("/daily-update", async (req, res) => {
   try {
     const latitude = 14.5995; // Manila coordinates
     const longitude = 120.9842;
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation`;
+    // ✅ Use hourly precipitation_sum for more accurate rainfall
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m&hourly=precipitation_sum&timezone=Asia/Manila`;
+
     const { data } = await axios.get(url);
 
     if (!data || !data.current) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid weather data from Open-Meteo",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid weather data from Open-Meteo" });
     }
 
-    const { temperature_2m, relative_humidity_2m, precipitation } =
-      data.current;
+    const { temperature_2m, relative_humidity_2m } = data.current;
 
+    // 🌧 Get rainfall for the latest hour (mm)
+    const rainfall = data.hourly?.precipitation_sum?.slice(-1)[0] || 0;
+
+    // Check if today's weather already exists
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-    const existing = await Weather.findOne({
-      date: { $gte: startOfDay },
-    });
+    const existing = await Weather.findOne({ date: { $gte: startOfDay } });
 
     if (existing) {
       existing.temperature = temperature_2m;
       existing.humidity = relative_humidity_2m;
-      existing.rainfall = precipitation;
+      existing.rainfall = rainfall;
       existing.data = data;
       existing.updatedAt = new Date();
       await existing.save();
@@ -106,27 +108,26 @@ router.get("/daily-update", async (req, res) => {
       await Weather.create({
         temperature: temperature_2m,
         humidity: relative_humidity_2m,
-        rainfall: precipitation,
+        rainfall,
         data,
       });
     }
 
     res.json({
       success: true,
-      message: "✅ Weather updated successfully from Open-Meteo",
+      message: "✅ Weather updated successfully from Open-Meteo (with hourly rainfall)",
       data: {
         temperature: temperature_2m,
         humidity: relative_humidity_2m,
-        rainfall: precipitation,
+        rainfall,
       },
     });
   } catch (err) {
     console.error("❌ Daily weather update failed:", err.message);
-    res
-      .status(500)
-      .json({ success: false, message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 });
+
 
 // 📊 Get all stored daily weather records (for Admin Dashboard)
 router.get("/", async (req, res) => {
