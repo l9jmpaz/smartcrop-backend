@@ -2,7 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import Notification from "../models/Notification.js";
+
 
 const router = express.Router();
 
@@ -26,11 +26,7 @@ router.post("/register", async (req, res) => {
         message: "Phone number already registered",
       });
     }
-await Notification.create({
-  title: "New User Registered",
-  message: `A new user (${username}) from ${barangay} just signed up.`,
-  type: "user",
-});
+
     // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
