@@ -75,7 +75,7 @@ router.get("/daily-update", async (req, res) => {
     const latitude = 14.5995;
     const longitude = 120.9842;
 
-    // ✅ minimal valid API call (confirmed to work everywhere)
+    // ✅ Working, simplified Open-Meteo API
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation&timezone=Asia/Manila`;
 
     const { data } = await axios.get(url);
@@ -88,18 +88,18 @@ router.get("/daily-update", async (req, res) => {
       });
     }
 
+    // ✅ Correct field names from Open-Meteo
     const { temperature_2m, relative_humidity_2m, precipitation } = data.current;
 
-    // Rainfall: use current precipitation rate (mm/h)
     const rainfall = precipitation ?? 0;
 
-    // Save or update today's record
+    // Check if today's weather record exists
     const today = new Date();
     const startOfDay = new Date(today.setHours(0, 0, 0, 0));
     const existing = await Weather.findOne({ date: { $gte: startOfDay } });
 
     if (existing) {
-      existing.temperature = temperature_2;
+      existing.temperature = temperature_2m; // ✅ fixed variable name
       existing.humidity = relative_humidity_2m;
       existing.rainfall = rainfall;
       existing.data = data;
@@ -114,11 +114,9 @@ router.get("/daily-update", async (req, res) => {
       });
     }
 
-
-    
     res.json({
       success: true,
-      message: "✅ Weather updated successfully from Open-Meteo (simplified)",
+      message: "✅ Weather updated successfully from Open-Meteo (fixed variable name)",
       data: {
         temperature: temperature_2m,
         humidity: relative_humidity_2m,
@@ -126,11 +124,8 @@ router.get("/daily-update", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Daily weather update failed:", err.response?.data || err.message);
-    res.status(500).json({
-      success: false,
-      message: err.response?.data || err.message,
-    });
+    console.error("❌ Daily weather update failed:", err.message);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
