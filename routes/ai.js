@@ -98,6 +98,7 @@ router.get("/recommend/:userId", async (req, res) => {
       const selected = matched.slice(0, 3);
       const untilMonth = season === "rainy" ? "december_2025" : "may_2026";
 
+      
       const fieldRecommendations = selected.map((c) => ({
         title: c.oversupply
           ? `${c.name} - consider_alternative`
