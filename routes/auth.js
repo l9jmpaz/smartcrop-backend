@@ -1,9 +1,9 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
 const router = express.Router();
-
 
 // 🧾 REGISTER USER
 router.post("/register", async (req, res) => {
@@ -17,7 +17,7 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Check if phone number already exists
+    // Check if phone already exists
     const existingUser = await User.findOne({ phone });
     if (existingUser) {
       return res.status(400).json({
@@ -26,7 +26,7 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // 🔐 Hash password before saving
+    // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await User.create({
@@ -34,7 +34,7 @@ router.post("/register", async (req, res) => {
       phone,
       password: hashedPassword,
       barangay,
-      role: "user",
+      role: "user", // default for normal users
       status: "Active",
     });
 
@@ -53,7 +53,7 @@ router.post("/register", async (req, res) => {
 });
 
 
-// 🔐 LOGIN USER
+// 🔐 LOGIN (User or Admin)
 router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
@@ -77,9 +77,10 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // ✅ Compare password (support plain or hashed)
+    // ✅ Compare password
     const validPassword =
-      password === user.password || (await bcrypt.compare(password, user.password));
+      password === user.password ||
+      (await bcrypt.compare(password, user.password));
 
     if (!validPassword) {
       return res.status(401).json({
@@ -88,19 +89,39 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // ✅ Return safe user object
-    const safeUser = {
-      _id: user._id,
-      username: user.username,
-      phone: user.phone,
-      barangay: user.barangay,
-      role: user.role,
-    };
+    // ✅ Create JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET || "smartcrop_secret",
+      { expiresIn: "7d" }
+    );
 
+    // ✅ Differentiate Admin vs User
+    if (user.role === "admin") {
+      return res.json({
+        success: true,
+        message: "Admin login successful",
+        token,
+        user: {
+          _id: user._id,
+          username: user.username,
+          role: user.role,
+        },
+      });
+    }
+
+    // ✅ Normal user login
     res.json({
       success: true,
-      message: "Login successful",
-      user: safeUser,
+      message: "User login successful",
+      token,
+      user: {
+        _id: user._id,
+        username: user.username,
+        phone: user.phone,
+        barangay: user.barangay,
+        role: user.role,
+      },
     });
   } catch (error) {
     console.error("❌ Login error:", error);
