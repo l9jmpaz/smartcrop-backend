@@ -3,43 +3,50 @@ import Notification from "../models/Notification.js";
 
 const router = express.Router();
 
-// 🟢 Get all notifications (Admin dashboard)
+// Get all notifications
 router.get("/", async (req, res) => {
   try {
     const notifications = await Notification.find().sort({ createdAt: -1 });
-    res.json({ success: true, data: notifications });
+    res.json(notifications);
   } catch (err) {
-    console.error("❌ Error fetching notifications:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// 🟢 Add new notification
+// Add notification
 router.post("/", async (req, res) => {
   try {
-    const { title, message, type, userId } = req.body;
-    const newNotif = new Notification({ title, message, type, userId });
-    await newNotif.save();
-    res.status(201).json({ success: true, data: newNotif });
+    const { title, message, type } = req.body;
+    const notification = new Notification({ title, message, type });
+    await notification.save();
+    res.json(notification);
   } catch (err) {
-    console.error("❌ Error creating notification:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// 🟢 Mark as read
+// Mark as read
 router.put("/:id/read", async (req, res) => {
   try {
-    const notif = await Notification.findByIdAndUpdate(
+    const notification = await Notification.findByIdAndUpdate(
       req.params.id,
       { read: true },
       { new: true }
     );
-    if (!notif) return res.status(404).json({ success: false, message: "Not found" });
-    res.json({ success: true, data: notif });
+    res.json(notification);
   } catch (err) {
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ error: err.message });
   }
 });
 
-export default router;
+// Delete
+router.delete("/:id", async (req, res) => {
+  try {
+    await Notification.findByIdAndDelete(req.params.id);
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export default router; // 
