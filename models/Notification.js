@@ -4,8 +4,7 @@ const notificationSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     message: { type: String, required: true },
-    type: { type: String, default: "general" }, // e.g., weather, alert, report
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    type: { type: String, enum: ["system", "user"], default: "user" },
     read: { type: Boolean, default: false },
   },
   { timestamps: true }
