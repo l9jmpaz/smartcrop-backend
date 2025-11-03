@@ -245,7 +245,11 @@ export const addFarmField = async (req, res) => {
       fieldSize,
       location,
     });
-
+await Notification.create({
+  title: "New Field Added",
+  message: `${fieldName} was added by user ${userId}.`,
+  type: "system",
+});
     await newFarm.save();
 
     res.status(201).json({
