@@ -7,8 +7,8 @@ const router = express.Router();
 // Get all users
 router.get("/", async (req, res) => {
   try {
-    const user = await User.find().select("-password"); // hide passwords
-    res.json({ success: true, data: user });
+    const users = await User.find().select("-password"); // hide passwords
+    res.json({ success: true, data: users });
   } catch (err) {
     console.error("❌ Error fetching users:", err);
     res.status(500).json({ success: false, message: "Server error" });
