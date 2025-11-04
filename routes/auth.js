@@ -3,43 +3,41 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
-import Otp from "../models/Otp.js"; // ✅ you'll create this model below
-import nodemailer from "nodemailer"; // used for email-to-sms gateway or direct email OTP
+import Otp from "../models/Otp.js";
+import { Resend } from "resend";
 
 const router = express.Router();
 
-// Helper to send OTP via Email (or Email-to-SMS Gateway)
-async function sendOtpToPhone(phone, code) {
+// Initialize Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// 🧩 Helper to send OTP email
+async function sendOtpEmail(email, otpCode) {
   try {
-    // Example using email-to-sms gateway (replace with real config)
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
+    console.log(`📤 Sending OTP via Resend to: ${email}`);
+    await resend.emails.send({
+      from: "SmartCrop <noreply@resend.dev>", // this can be customized if you verified a domain
+      to: email,
+      subject: "SmartCrop OTP Verification",
+      html: `
+        <div style="font-family: Arial; padding: 20px;">
+          <h2 style="color: #2e7d32;">SmartCrop Verification</h2>
+          <p>Hello! Your verification code is:</p>
+          <h1 style="color: #2e7d32;">${otpCode}</h1>
+          <p>This code expires in 5 minutes. Please enter it to activate your account.</p>
+        </div>
+      `,
     });
-
-    // Example: convert to email-to-sms address if Smart/Globe/DITO support it
-    const to = `${phone}@sms.gateway.example.com`;
-
-    await transporter.sendMail({
-      from: `"SmartCrop OTP" <${process.env.EMAIL_USER}>`,
-      to,
-      subject: "Your SmartCrop Verification Code",
-      text: `Your verification code is ${code}. It will expire in 5 minutes.`,
-    });
-
-    console.log(`📩 OTP sent to ${phone}: ${code}`);
+    console.log("✅ OTP email sent successfully!");
   } catch (err) {
-    console.error("❌ Failed to send OTP:", err.message);
+    console.error("❌ Error sending OTP via Resend:", err);
   }
 }
 
+// 🧾 REGISTER USER
 router.post("/register", async (req, res) => {
   try {
     console.log("📥 Received registration:", req.body);
-
     const { username, phone, password, barangay, email } = req.body;
 
     if (!username || !phone || !password || !barangay || !email) {
@@ -57,10 +55,7 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    console.log("✅ Passed field validation");
-
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const newUser = await User.create({
       username,
       phone,
@@ -73,44 +68,25 @@ router.post("/register", async (req, res) => {
 
     console.log("✅ User created:", newUser._id);
 
-    // 🟢 Create notification for admin
+    // Notify admin
     await Notification.create({
       title: "New user registered",
       message: `A new farmer (${username}) has registered from ${barangay}.`,
       type: "user",
     });
 
-    // 🟡 Generate OTP
+    // Generate OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     console.log("📨 Generated OTP:", otpCode);
 
     const otp = await Otp.create({
       userId: newUser._id,
-      code: otpCode,
+      otpCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    console.log("✅ OTP saved:", otp._id);
-
-    // ✉️ Try to send email
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    console.log("📤 Sending OTP email to:", email);
-
-    await transporter.sendMail({
-      from: `"SmartCrop" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "SmartCrop OTP Verification",
-      text: `Your verification code is ${otpCode}. It will expire in 5 minutes.`,
-    });
-
-    console.log("✅ Email sent!");
+    // Send OTP email via Resend
+    await sendOtpEmail(email, otpCode);
 
     return res.status(201).json({
       success: true,
@@ -127,7 +103,6 @@ router.post("/register", async (req, res) => {
   }
 });
 
-
 // 🔐 LOGIN (User or Admin)
 router.post("/login", async (req, res) => {
   try {
@@ -140,10 +115,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const user = await User.findOne({
-      $or: [{ phone }, { username }],
-    });
-
+    const user = await User.findOne({ $or: [{ phone }, { username }] });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -151,7 +123,6 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // 🟡 Prevent login if not verified
     if (user.status === "Pending Verification") {
       return res.status(403).json({
         success: false,
@@ -160,9 +131,7 @@ router.post("/login", async (req, res) => {
     }
 
     const validPassword =
-      password === user.password ||
-      (await bcrypt.compare(password, user.password));
-
+      password === user.password || (await bcrypt.compare(password, user.password));
     if (!validPassword) {
       return res.status(401).json({
         success: false,
@@ -196,6 +165,7 @@ router.post("/login", async (req, res) => {
     });
   }
 });
+
 // ✅ VERIFY OTP CODE
 router.post("/verify-otp", async (req, res) => {
   try {
@@ -208,7 +178,6 @@ router.post("/verify-otp", async (req, res) => {
       });
     }
 
-    // 1️⃣ Find OTP record
     const otpRecord = await Otp.findById(otpId);
     if (!otpRecord) {
       return res.status(404).json({
@@ -217,7 +186,6 @@ router.post("/verify-otp", async (req, res) => {
       });
     }
 
-    // 2️⃣ Check if it expired
     if (otpRecord.expiresAt < new Date()) {
       await Otp.deleteOne({ _id: otpId });
       return res.status(400).json({
@@ -226,7 +194,6 @@ router.post("/verify-otp", async (req, res) => {
       });
     }
 
-    // 3️⃣ Compare code
     if (otpRecord.otpCode !== otpCode) {
       return res.status(400).json({
         success: false,
@@ -234,17 +201,14 @@ router.post("/verify-otp", async (req, res) => {
       });
     }
 
-    // 4️⃣ Mark user as verified
     const user = await User.findOneAndUpdate(
       { phone },
       { status: "Active" },
       { new: true }
     );
 
-    // 5️⃣ Delete OTP after verification
     await Otp.deleteOne({ _id: otpId });
 
-    // 6️⃣ Done
     res.json({
       success: true,
       message: "Phone verified successfully!",
