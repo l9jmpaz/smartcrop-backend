@@ -7,30 +7,30 @@ import Otp from "../models/Otp.js";
 import { Resend } from "resend";
 
 const router = express.Router();
-
-// Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// 🧩 Helper to send OTP email
+// 🧩 Helper: Send OTP Email
 async function sendOtpEmail(email, otpCode) {
   try {
     console.log(`📤 Sending OTP via Resend to: ${email}`);
-    await resend.emails.send({
-      from: "SmartCrop <noreply@resend.dev>", // this can be customized if you verified a domain
+    const response = await resend.emails.send({
+      from: "SmartCrop <noreply@resend.dev>",
       to: email,
       subject: "SmartCrop OTP Verification",
       html: `
         <div style="font-family: Arial; padding: 20px;">
           <h2 style="color: #2e7d32;">SmartCrop Verification</h2>
           <p>Hello! Your verification code is:</p>
-          <h1 style="color: #2e7d32;">${otpCode}</h1>
-          <p>This code expires in 5 minutes. Please enter it to activate your account.</p>
+          <h1 style="color: #2e7d32; font-size: 28px;">${otpCode}</h1>
+          <p>This code will expire in 5 minutes. Please enter it to activate your account.</p>
         </div>
       `,
     });
-    console.log("✅ OTP email sent successfully!");
+    console.log("✅ OTP email sent successfully:", response?.id || "No ID");
+    return true;
   } catch (err) {
-    console.error("❌ Error sending OTP via Resend:", err);
+    console.error("❌ Error sending OTP via Resend:", err.message);
+    return false;
   }
 }
 
@@ -41,20 +41,15 @@ router.post("/register", async (req, res) => {
     const { username, phone, password, barangay, email } = req.body;
 
     if (!username || !phone || !password || !barangay || !email) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
+      return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
     const existingUser = await User.findOne({ phone });
     if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number already registered",
-      });
+      return res.status(400).json({ success: false, message: "Phone number already registered" });
     }
 
+    // Create user
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({
       username,
@@ -75,18 +70,23 @@ router.post("/register", async (req, res) => {
       type: "user",
     });
 
-    // Generate OTP
+    // Generate and store OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log("📨 Generated OTP:", otpCode);
-
     const otp = await Otp.create({
       userId: newUser._id,
       otpCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      lastSentAt: new Date(),
     });
 
-    // Send OTP email via Resend
-    await sendOtpEmail(email, otpCode);
+    // Send OTP Email
+    const sent = await sendOtpEmail(email, otpCode);
+    if (!sent) {
+      return res.status(500).json({
+        success: false,
+        message: "User created, but OTP email failed to send. Please use resend option.",
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -103,25 +103,63 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// 🔐 LOGIN (User or Admin)
+// ✅ RESEND OTP (with cooldown)
+router.post("/resend-otp", async (req, res) => {
+  try {
+    const { phone, email } = req.body;
+    if (!phone || !email) {
+      return res.status(400).json({ success: false, message: "Missing phone or email" });
+    }
+
+    const user = await User.findOne({ phone });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Check resend cooldown (50 seconds)
+    const recentOtp = await Otp.findOne({ userId: user._id }).sort({ createdAt: -1 });
+    if (recentOtp && recentOtp.lastSentAt && (Date.now() - recentOtp.lastSentAt.getTime()) < 50 * 1000) {
+      return res.status(429).json({
+        success: false,
+        message: "Please wait 50 seconds before requesting another OTP.",
+      });
+    }
+
+    // Generate new OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newOtp = await Otp.create({
+      userId: user._id,
+      otpCode,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      lastSentAt: new Date(),
+    });
+
+    const sent = await sendOtpEmail(email, otpCode);
+    if (!sent) {
+      return res.status(500).json({ success: false, message: "Failed to send OTP email" });
+    }
+
+    res.json({
+      success: true,
+      message: "OTP resent successfully.",
+      otpId: newOtp._id,
+    });
+  } catch (err) {
+    console.error("❌ Resend OTP error:", err);
+    res.status(500).json({ success: false, message: "Server error during OTP resend" });
+  }
+});
+
+// 🔐 LOGIN
 router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
-
     if ((!phone && !username) || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing username/phone or password",
-      });
+      return res.status(400).json({ success: false, message: "Missing username/phone or password" });
     }
 
     const user = await User.findOne({ $or: [{ phone }, { username }] });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
     if (user.status === "Pending Verification") {
       return res.status(403).json({
@@ -130,20 +168,12 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const validPassword =
-      password === user.password || (await bcrypt.compare(password, user.password));
-    if (!validPassword) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid password",
-      });
-    }
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) return res.status(401).json({ success: false, message: "Invalid password" });
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET || "smartcrop_secret",
-      { expiresIn: "7d" }
-    );
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || "smartcrop_secret", {
+      expiresIn: "7d",
+    });
 
     res.json({
       success: true,
@@ -159,59 +189,32 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Login error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error during login",
-    });
+    res.status(500).json({ success: false, message: "Server error during login" });
   }
 });
 
-// ✅ VERIFY OTP CODE
+// ✅ VERIFY OTP
 router.post("/verify-otp", async (req, res) => {
   try {
     const { otpId, otpCode, phone } = req.body;
-
-    if (!otpId || !otpCode || !phone) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing OTP or phone information",
-      });
-    }
+    if (!otpId || !otpCode || !phone)
+      return res.status(400).json({ success: false, message: "Missing OTP or phone information" });
 
     const otpRecord = await Otp.findById(otpId);
-    if (!otpRecord) {
-      return res.status(404).json({
-        success: false,
-        message: "OTP record not found",
-      });
-    }
-
+    if (!otpRecord) return res.status(404).json({ success: false, message: "OTP record not found" });
     if (otpRecord.expiresAt < new Date()) {
       await Otp.deleteOne({ _id: otpId });
-      return res.status(400).json({
-        success: false,
-        message: "OTP expired, please request a new one",
-      });
+      return res.status(400).json({ success: false, message: "OTP expired, please request a new one" });
     }
+    if (otpRecord.otpCode !== otpCode)
+      return res.status(400).json({ success: false, message: "Invalid OTP code" });
 
-    if (otpRecord.otpCode !== otpCode) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP code",
-      });
-    }
-
-    const user = await User.findOneAndUpdate(
-      { phone },
-      { status: "Active" },
-      { new: true }
-    );
-
+    const user = await User.findOneAndUpdate({ phone }, { status: "Active" }, { new: true });
     await Otp.deleteOne({ _id: otpId });
 
     res.json({
       success: true,
-      message: "Phone verified successfully!",
+      message: "Account verified successfully!",
       user: {
         id: user._id,
         username: user.username,
@@ -221,10 +224,7 @@ router.post("/verify-otp", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ OTP verify error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error during OTP verification",
-    });
+    res.status(500).json({ success: false, message: "Server error during OTP verification" });
   }
 });
 
