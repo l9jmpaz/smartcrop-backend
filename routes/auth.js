@@ -9,23 +9,26 @@ import SibApiV3Sdk from "sib-api-v3-sdk"; // ✅ Brevo SDK
 const router = express.Router();
 
 /* ======================================================
-   📧 Helper: Send OTP Email via Brevo (Sendinblue)
+   📧 Helper: Send OTP Email via Brevo
 ====================================================== */
 async function sendOtpEmail(email, otpCode) {
   try {
     console.log(`📤 Sending OTP via Brevo to: ${email}`);
 
-    const client = SibApiV3Sdk.ApiClient.instance;
-    client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
+    // ✅ Configure Brevo API client
+    const defaultClient = SibApiV3Sdk.ApiClient.instance;
+    const apiKey = defaultClient.authentications["api-key"];
+    apiKey.apiKey = process.env.BREVO_API_KEY; // from .env or Render Environment
 
-    const api = new SibApiV3Sdk.TransactionalEmailsApi();
+    const tranEmailApi = new SibApiV3Sdk.TransactionalEmailsApi();
 
-    const sendSmtpEmail = {
-      sender: { name: "SmartCrop", email: "noreply@smartcrop.app" },
+    // ✅ Email template
+    const mailOptions = {
+      sender: { name: "Smart Crop", email: "l9impaz@gmail.com" }, // verified Brevo sender
       to: [{ email }],
       subject: "SmartCrop OTP Verification",
       htmlContent: `
-        <div style="font-family: Arial; padding: 20px;">
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #2e7d32;">SmartCrop Verification</h2>
           <p>Hello! Your verification code is:</p>
           <h1 style="color: #2e7d32; font-size: 28px;">${otpCode}</h1>
@@ -36,8 +39,9 @@ async function sendOtpEmail(email, otpCode) {
       `,
     };
 
-    const response = await api.sendTransacEmail(sendSmtpEmail);
-    console.log("✅ OTP email sent successfully via Brevo:", response.messageId);
+    // ✅ Send the email
+    const response = await tranEmailApi.sendTransacEmail(mailOptions);
+    console.log("✅ OTP email sent successfully:", response.messageId || "No ID");
     return true;
   } catch (err) {
     console.error("❌ Error sending OTP via Brevo:", err.message);
@@ -54,10 +58,16 @@ router.post("/register", async (req, res) => {
     const { username, phone, password, barangay, email } = req.body;
 
     if (!username || !phone || !password || !barangay || !email) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields",
+      });
     }
 
-    const existingUser = await User.findOne({ $or: [{ phone }, { email }] });
+    const existingUser = await User.findOne({
+      $or: [{ phone }, { email }],
+    });
+
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -100,7 +110,8 @@ router.post("/register", async (req, res) => {
       console.warn("⚠️ OTP email failed to send.");
       return res.status(500).json({
         success: false,
-        message: "User created, but OTP email failed to send. Please use resend option.",
+        message:
+          "User created, but OTP email failed to send. Please use resend option.",
       });
     }
 
@@ -127,7 +138,9 @@ router.post("/resend-otp", async (req, res) => {
     const { phone, email } = req.body;
 
     if (!phone && !email) {
-      return res.status(400).json({ success: false, message: "Missing phone or email" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing phone or email" });
     }
 
     const user = await User.findOne(phone ? { phone } : { email });
@@ -135,7 +148,10 @@ router.post("/resend-otp", async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    const recentOtp = await Otp.findOne({ userId: user._id }).sort({ createdAt: -1 });
+    const recentOtp = await Otp.findOne({ userId: user._id }).sort({
+      createdAt: -1,
+    });
+
     if (
       recentOtp &&
       recentOtp.lastSentAt &&
@@ -157,7 +173,9 @@ router.post("/resend-otp", async (req, res) => {
 
     const sent = await sendOtpEmail(email, otpCode);
     if (!sent) {
-      return res.status(500).json({ success: false, message: "Failed to send OTP email" });
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to send OTP email" });
     }
 
     res.json({
@@ -167,7 +185,9 @@ router.post("/resend-otp", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ Resend OTP error:", err);
-    res.status(500).json({ success: false, message: "Server error during OTP resend" });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during OTP resend" });
   }
 });
 
@@ -177,12 +197,17 @@ router.post("/resend-otp", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
+
     if ((!phone && !username) || !password) {
-      return res.status(400).json({ success: false, message: "Missing username/phone or password" });
+      return res.status(400).json({
+        success: false,
+        message: "Missing username/phone or password",
+      });
     }
 
     const user = await User.findOne({ $or: [{ phone }, { username }] });
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
 
     if (user.status === "Pending Verification") {
       return res.status(403).json({
@@ -193,7 +218,9 @@ router.post("/login", async (req, res) => {
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword)
-      return res.status(401).json({ success: false, message: "Invalid password" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid password" });
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
@@ -215,7 +242,9 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Login error:", error);
-    res.status(500).json({ success: false, message: "Server error during login" });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during login" });
   }
 });
 
@@ -225,12 +254,17 @@ router.post("/login", async (req, res) => {
 router.post("/verify-otp", async (req, res) => {
   try {
     const { otpId, otpCode, phone } = req.body;
+
     if (!otpId || !otpCode || !phone)
-      return res.status(400).json({ success: false, message: "Missing OTP or phone information" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing OTP or phone information" });
 
     const otpRecord = await Otp.findById(otpId);
     if (!otpRecord)
-      return res.status(404).json({ success: false, message: "OTP record not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "OTP record not found" });
 
     if (otpRecord.expiresAt < new Date()) {
       await Otp.deleteOne({ _id: otpId });
@@ -240,7 +274,9 @@ router.post("/verify-otp", async (req, res) => {
     }
 
     if (otpRecord.otpCode !== otpCode)
-      return res.status(400).json({ success: false, message: "Invalid OTP code" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid OTP code" });
 
     const user = await User.findOneAndUpdate(
       { phone },
@@ -262,7 +298,9 @@ router.post("/verify-otp", async (req, res) => {
     });
   } catch (err) {
     console.error("❌ OTP verify error:", err);
-    res.status(500).json({ success: false, message: "Server error during OTP verification" });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error during OTP verification" });
   }
 });
 
