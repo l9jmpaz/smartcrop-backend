@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import axios from "axios"; // ✅ For Semaphore SMS API
+import axios from "axios"; // ✅ for Semaphore API
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Otp from "../models/Otp.js";
@@ -9,34 +9,43 @@ import Otp from "../models/Otp.js";
 const router = express.Router();
 
 /* ======================================================
-   📱 Helper: Send OTP via Semaphore SMS
+   📞 Helper: Format PH Number for +63 format
+====================================================== */
+function formatPhone(phone) {
+  if (!phone) return "";
+  const trimmed = phone.toString().trim();
+  if (trimmed.startsWith("+63")) return trimmed;
+  if (trimmed.startsWith("0")) return "+63" + trimmed.substring(1);
+  return trimmed;
+}
+
+/* ======================================================
+   📱 Helper: Send OTP via Semaphore (with detailed logs)
 ====================================================== */
 async function sendOtpSms(phone, otpCode) {
   try {
-    console.log(`📤 Sending OTP via Semaphore to: ${phone}`);
+    const formattedPhone = formatPhone(phone);
+    console.log(`📤 Sending OTP via Semaphore to: ${formattedPhone}`);
 
-        const formattedNumber = phone.startsWith("0")
-      ? "+63" + phone.substring(1)
-      : phone;
-
-    const message = `[SmartCrop] Your verification code is ${otpCode}. This code will expire in 5 minutes.`;
+    const message = `Your SmartCrop verification code is ${otpCode}. Do not share this code with anyone.`;
 
     const response = await axios.post("https://api.semaphore.co/api/v4/messages", {
       apikey: process.env.SEMAPHORE_API_KEY,
-      number: phone,
+      number: formattedPhone,
       message: message,
       sendername: process.env.SEMAPHORE_SENDER || "Semaphore",
     });
 
-    if (response.data && response.data[0]?.status === "Queued") {
-      console.log("✅ OTP SMS sent successfully via Semaphore.");
-      return true;
-    } else {
-      console.error("⚠️ Failed to send OTP via Semaphore:", response.data);
-      return false;
-    }
+    console.log("✅ OTP sent successfully via Semaphore:", response.data);
+    return true;
   } catch (err) {
-    console.error("❌ Error sending OTP via Semaphore:", err.message);
+    console.error("❌ Error sending OTP via Semaphore:");
+    if (err.response) {
+      console.error("🔴 Status Code:", err.response.status);
+      console.error("🔴 Error Data:", err.response.data);
+    } else {
+      console.error("🔴 Message:", err.message);
+    }
     return false;
   }
 }
@@ -49,15 +58,11 @@ router.post("/register", async (req, res) => {
     console.log("📥 Received registration:", req.body);
     const { username, phone, password, barangay, email } = req.body;
 
-    if (!username || !phone || !password || !barangay || !email) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
-      });
-    }
+    if (!username || !phone || !password || !barangay || !email)
+      return res.status(400).json({ success: false, message: "Missing required fields" });
 
     const existingUser = await User.findOne({ $or: [{ phone }, { email }] });
-    if (existingUser) {
+    if (existingUser)
       return res.status(400).json({
         success: false,
         message:
@@ -65,7 +70,6 @@ router.post("/register", async (req, res) => {
             ? "Phone number already registered"
             : "Email already registered",
       });
-    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({
@@ -87,7 +91,7 @@ router.post("/register", async (req, res) => {
     });
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    await Otp.create({
+    const otp = await Otp.create({
       userId: newUser._id,
       otpCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
@@ -95,23 +99,20 @@ router.post("/register", async (req, res) => {
     });
 
     const sent = await sendOtpSms(phone, otpCode);
-    if (!sent) {
+    if (!sent)
       return res.status(500).json({
         success: false,
-        message:
-          "User created, but OTP SMS failed to send. Please use resend option.",
+        message: "User created, but OTP SMS failed to send. Please use resend option.",
       });
-    }
 
     res.status(201).json({
       success: true,
       message: "User registered successfully. OTP sent via SMS.",
+      otpId: otp._id,
     });
   } catch (error) {
     console.error("❌ Registration error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Server error during registration" });
+    res.status(500).json({ success: false, message: "Server error during registration" });
   }
 });
 
@@ -122,29 +123,21 @@ router.post("/resend-otp", async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone)
-      return res.status(400).json({ success: false, message: "Missing phone" });
+      return res.status(400).json({ success: false, message: "Missing phone number" });
 
     const user = await User.findOne({ phone });
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    const recentOtp = await Otp.findOne({ userId: user._id }).sort({
-      createdAt: -1,
-    });
-
-    if (
-      recentOtp &&
-      recentOtp.lastSentAt &&
-      Date.now() - recentOtp.lastSentAt.getTime() < 50 * 1000
-    ) {
+    const recentOtp = await Otp.findOne({ userId: user._id }).sort({ createdAt: -1 });
+    if (recentOtp && recentOtp.lastSentAt && Date.now() - recentOtp.lastSentAt.getTime() < 50 * 1000)
       return res.status(429).json({
         success: false,
         message: "Please wait 50 seconds before requesting another OTP.",
       });
-    }
 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    await Otp.create({
+    const newOtp = await Otp.create({
       userId: user._id,
       otpCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
@@ -153,14 +146,12 @@ router.post("/resend-otp", async (req, res) => {
 
     const sent = await sendOtpSms(phone, otpCode);
     if (!sent)
-      return res
-        .status(500)
-        .json({ success: false, message: "Failed to send OTP SMS" });
+      return res.status(500).json({ success: false, message: "Failed to send OTP SMS" });
 
-    res.json({ success: true, message: "OTP resent successfully via SMS." });
+    res.json({ success: true, message: "OTP resent successfully.", otpId: newOtp._id });
   } catch (err) {
     console.error("❌ Resend OTP error:", err);
-    res.status(500).json({ success: false, message: "Server error during resend" });
+    res.status(500).json({ success: false, message: "Server error during OTP resend" });
   }
 });
 
@@ -170,30 +161,21 @@ router.post("/resend-otp", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
-
-    if ((!phone && !username) || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing username/phone or password",
-      });
-    }
+    if ((!phone && !username) || !password)
+      return res.status(400).json({ success: false, message: "Missing username/phone or password" });
 
     const user = await User.findOne({ $or: [{ phone }, { username }] });
-    if (!user)
-      return res.status(404).json({ success: false, message: "User not found" });
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    if (user.status === "Pending Verification") {
+    if (user.status === "Pending Verification")
       return res.status(403).json({
         success: false,
         message: "Please verify your account via OTP before logging in.",
       });
-    }
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword)
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid password" });
+      return res.status(401).json({ success: false, message: "Invalid password" });
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
@@ -215,9 +197,7 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Login error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Server error during login" });
+    res.status(500).json({ success: false, message: "Server error during login" });
   }
 });
 
@@ -226,32 +206,24 @@ router.post("/login", async (req, res) => {
 ====================================================== */
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { phone, otpCode } = req.body;
-    if (!phone || !otpCode)
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing phone or OTP" });
+    const { otpId, otpCode, phone } = req.body;
+    if (!otpId || !otpCode || !phone)
+      return res.status(400).json({ success: false, message: "Missing OTP or phone information" });
 
-    const otpRecord = await Otp.findOne({ otpCode }).sort({ createdAt: -1 });
+    const otpRecord = await Otp.findById(otpId);
     if (!otpRecord)
-      return res
-        .status(404)
-        .json({ success: false, message: "Invalid OTP code" });
+      return res.status(404).json({ success: false, message: "OTP record not found" });
 
     if (otpRecord.expiresAt < new Date()) {
-      await Otp.deleteOne({ _id: otpRecord._id });
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP expired. Request new one." });
+      await Otp.deleteOne({ _id: otpId });
+      return res.status(400).json({ success: false, message: "OTP expired, please request a new one" });
     }
 
-    const user = await User.findOneAndUpdate(
-      { phone },
-      { status: "Active" },
-      { new: true }
-    );
+    if (otpRecord.otpCode !== otpCode)
+      return res.status(400).json({ success: false, message: "Invalid OTP code" });
 
-    await Otp.deleteOne({ _id: otpRecord._id });
+    const user = await User.findOneAndUpdate({ phone }, { status: "Active" }, { new: true });
+    await Otp.deleteOne({ _id: otpId });
 
     res.json({
       success: true,
@@ -264,8 +236,8 @@ router.post("/verify-otp", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Verify OTP error:", err);
-    res.status(500).json({ success: false, message: "Server error during verification" });
+    console.error("❌ OTP verify error:", err);
+    res.status(500).json({ success: false, message: "Server error during OTP verification" });
   }
 });
 
