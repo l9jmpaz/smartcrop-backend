@@ -38,6 +38,8 @@ async function sendOtpToPhone(phone, code) {
 
 router.post("/register", async (req, res) => {
   try {
+    console.log("📥 Received registration:", req.body);
+
     const { username, phone, password, barangay, email } = req.body;
 
     if (!username || !phone || !password || !barangay || !email) {
@@ -55,6 +57,8 @@ router.post("/register", async (req, res) => {
       });
     }
 
+    console.log("✅ Passed field validation");
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await User.create({
@@ -64,33 +68,40 @@ router.post("/register", async (req, res) => {
       email,
       barangay,
       role: "user",
-      status: "Pending Verification", // ✅ start as pending
+      status: "Pending Verification",
     });
 
-    // 🟢 Create admin notification
+    console.log("✅ User created:", newUser._id);
+
+    // 🟢 Create notification for admin
     await Notification.create({
       title: "New user registered",
       message: `A new farmer (${username}) has registered from ${barangay}.`,
       type: "user",
     });
 
-    // 🟡 Generate 6-digit OTP
+    // 🟡 Generate OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log("📨 Generated OTP:", otpCode);
 
     const otp = await Otp.create({
       userId: newUser._id,
       code: otpCode,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    // ✉️ Send OTP via Email (using nodemailer)
+    console.log("✅ OTP saved:", otp._id);
+
+    // ✉️ Try to send email
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.EMAIL_USER, // e.g. your Gmail
+        user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
     });
+
+    console.log("📤 Sending OTP email to:", email);
 
     await transporter.sendMail({
       from: `"SmartCrop" <${process.env.EMAIL_USER}>`,
@@ -99,21 +110,16 @@ router.post("/register", async (req, res) => {
       text: `Your verification code is ${otpCode}. It will expire in 5 minutes.`,
     });
 
-    // ✅ Success response
-    res.status(201).json({
+    console.log("✅ Email sent!");
+
+    return res.status(201).json({
       success: true,
       message: "User registered successfully. OTP sent.",
       otpId: otp._id,
-      user: {
-        id: newUser._id,
-        phone: newUser.phone,
-        email: newUser.email,
-        status: newUser.status,
-      },
     });
   } catch (error) {
     console.error("❌ Registration error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Server error during registration",
       error: error.message,
