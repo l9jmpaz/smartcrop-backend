@@ -35,21 +35,35 @@ async function sendOtpEmail(email, otpCode) {
 }
 
 // 🧾 REGISTER USER
+// 🧾 REGISTER USER
 router.post("/register", async (req, res) => {
   try {
     console.log("📥 Received registration:", req.body);
     const { username, phone, password, barangay, email } = req.body;
 
     if (!username || !phone || !password || !barangay || !email) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
     }
 
-    const existingUser = await User.findOne({ phone });
+    // ✅ Check both phone and email
+    const existingUser = await User.findOne({
+      $or: [{ phone }, { email }],
+    });
     if (existingUser) {
-      return res.status(400).json({ success: false, message: "Phone number already registered" });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            existingUser.phone === phone
+              ? "Phone number already registered"
+              : "Email already registered",
+        });
     }
 
-    // Create user
+    // ✅ Create user
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await User.create({
       username,
@@ -63,14 +77,14 @@ router.post("/register", async (req, res) => {
 
     console.log("✅ User created:", newUser._id);
 
-    // Notify admin
+    // ✅ Create admin notification
     await Notification.create({
       title: "New user registered",
       message: `A new farmer (${username}) has registered from ${barangay}.`,
       type: "user",
     });
 
-    // Generate and store OTP
+    // ✅ Generate and store OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const otp = await Otp.create({
       userId: newUser._id,
@@ -79,18 +93,20 @@ router.post("/register", async (req, res) => {
       lastSentAt: new Date(),
     });
 
-    // Send OTP Email
+    // ✅ Send OTP email
     const sent = await sendOtpEmail(email, otpCode);
     if (!sent) {
+      console.warn("⚠️ OTP email failed to send.");
       return res.status(500).json({
         success: false,
-        message: "User created, but OTP email failed to send. Please use resend option.",
+        message:
+          "User created, but OTP email failed to send. Please use resend option.",
       });
     }
 
     return res.status(201).json({
       success: true,
-      message: "User registered successfully. OTP sent.",
+      message: "User registered successfully. OTP sent to email.",
       otpId: otp._id,
     });
   } catch (error) {
@@ -107,14 +123,14 @@ router.post("/register", async (req, res) => {
 router.post("/resend-otp", async (req, res) => {
   try {
     const { phone, email } = req.body;
-    if (!phone || !email) {
-      return res.status(400).json({ success: false, message: "Missing phone or email" });
-    }
+   if (!phone && !email) {
+  return res.status(400).json({ success: false, message: "Missing phone or email" });
+}
 
-    const user = await User.findOne({ phone });
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
+const user = await User.findOne(phone ? { phone } : { email });
+if (!user) {
+  return res.status(404).json({ success: false, message: "User not found" });
+}
 
     // Check resend cooldown (50 seconds)
     const recentOtp = await Otp.findOne({ userId: user._id }).sort({ createdAt: -1 });
@@ -192,55 +208,13 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error during login" });
   }
 });
-// Forgot Password (send OTP)
-router.post("/forgot-password", async (req, res) => {
-  const { email } = req.body;
-  const user = await User.findOne({ email });
-  if (!user)
-    return res.status(404).json({ success: false, message: "Email not found" });
-
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const otp = await Otp.create({
-    userId: user._id,
-    otpCode,
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-  });
-
-  await sendOtpEmail(email, otpCode);
-  res.json({ success: true, message: "OTP sent", otpId: otp._id });
-});
-
-// Verify OTP for Reset
-router.post("/verify-reset-otp", async (req, res) => {
-  const { otpId, otpCode } = req.body;
-  const otp = await Otp.findById(otpId);
-  if (!otp || otp.otpCode !== otpCode)
-    return res.status(400).json({ success: false, message: "Invalid OTP" });
-  if (otp.expiresAt < new Date())
-    return res.status(400).json({ success: false, message: "OTP expired" });
-
-  res.json({ success: true, message: "OTP verified" });
-});
-
-// Reset Password
-router.post("/reset-password", async (req, res) => {
-  const { email, newPassword } = req.body;
-  const user = await User.findOne({ email });
-  if (!user)
-    return res.status(404).json({ success: false, message: "User not found" });
-
-  const hashed = await bcrypt.hash(newPassword, 10);
-  user.password = hashed;
-  await user.save();
-  res.json({ success: true, message: "Password updated successfully" });
-});
 
 // ✅ VERIFY OTP
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { otpId, otpCode, email } = req.body;
-    if (!otpId || !otpCode || !email)
-      return res.status(400).json({ success: false, message: "Missing OTP or email information" });
+    const { otpId, otpCode, phone } = req.body;
+    if (!otpId || !otpCode || !phone)
+      return res.status(400).json({ success: false, message: "Missing OTP or phone information" });
 
     const otpRecord = await Otp.findById(otpId);
     if (!otpRecord) return res.status(404).json({ success: false, message: "OTP record not found" });

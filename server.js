@@ -81,7 +81,7 @@ cron.schedule("0 6 * * *", async () => {
   try {
     console.log("🌤️ [CRON] Running daily weather update...");
     await axios.get(
-      "https://smartcrop-backend-in5e.onrender.com/api/weather/daily-update"
+      "https://smartcrop-backend-1.onrender.com/api/weather/daily-update"
     );
     console.log("✅ [CRON] Weather updated successfully!");
   } catch (err) {
