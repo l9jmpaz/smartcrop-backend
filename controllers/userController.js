@@ -57,7 +57,8 @@ export const uploadProfilePicture = async (req, res) => {
     }
 
     // Save new path
-    user.profilePicture = req.file.path;
+    // ✅ New line — saves relative URL path
+user.profilePicture = `/uploads/${path.basename(req.file.path)}`;
     await user.save();
 
     res.status(200).json({
