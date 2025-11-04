@@ -36,7 +36,6 @@ async function sendOtpToPhone(phone, code) {
   }
 }
 
-// 🧾 REGISTER USER + AUTO SEND OTP
 router.post("/register", async (req, res) => {
   try {
     const { username, phone, password, barangay, email } = req.body;
@@ -48,7 +47,6 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Check if phone already exists
     const existingUser = await User.findOne({ phone });
     if (existingUser) {
       return res.status(400).json({
@@ -57,10 +55,8 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // 🔐 Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user
     const newUser = await User.create({
       username,
       phone,
@@ -68,43 +64,63 @@ router.post("/register", async (req, res) => {
       email,
       barangay,
       role: "user",
-      status: "Pending Verification", // 👈 mark as pending until OTP verified
+      status: "Pending Verification", // ✅ start as pending
     });
 
-    // 🟢 Create notification for Admin Dashboard
+    // 🟢 Create admin notification
     await Notification.create({
       title: "New user registered",
       message: `A new farmer (${username}) has registered from ${barangay}.`,
       type: "user",
     });
 
-    // 🔢 Generate OTP
+    // 🟡 Generate 6-digit OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Save OTP in DB with 5-minute expiry
     const otp = await Otp.create({
-      phone,
-      otpCode,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      userId: newUser._id,
+      code: otpCode,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 mins
     });
 
-    // ✉️ Send OTP (via email-to-sms or API)
-    await sendOtpToPhone(phone, otpCode);
+    // ✉️ Send OTP via Email (using nodemailer)
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER, // e.g. your Gmail
+        pass: process.env.EMAIL_PASS,
+      },
+    });
 
-    // ✅ Respond with OTP ID for verification screen
+    await transporter.sendMail({
+      from: `"SmartCrop" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "SmartCrop OTP Verification",
+      text: `Your verification code is ${otpCode}. It will expire in 5 minutes.`,
+    });
+
+    // ✅ Success response
     res.status(201).json({
       success: true,
-      message: "User registered successfully. OTP sent for verification.",
+      message: "User registered successfully. OTP sent.",
       otpId: otp._id,
+      user: {
+        id: newUser._id,
+        phone: newUser.phone,
+        email: newUser.email,
+        status: newUser.status,
+      },
     });
   } catch (error) {
     console.error("❌ Registration error:", error);
     res.status(500).json({
       success: false,
       message: "Server error during registration",
+      error: error.message,
     });
   }
 });
+
 
 // 🔐 LOGIN (User or Admin)
 router.post("/login", async (req, res) => {
