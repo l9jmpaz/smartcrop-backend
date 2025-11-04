@@ -50,66 +50,53 @@ async function sendOtpSms(phone, otpCode) {
   }
 }
 
-/* ======================================================
-   🧾 REGISTER USER
-====================================================== */
 router.post("/register", async (req, res) => {
   try {
-    console.log("📥 Received registration:", req.body);
-    const { username, phone, password, barangay, email } = req.body;
+    const { username, phone, password, barangay, email, firebaseUid } = req.body;
 
-    if (!username || !phone || !password || !barangay || !email)
+    if (!username || !phone || !password || !barangay || !email) {
       return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
 
     const existingUser = await User.findOne({ $or: [{ phone }, { email }] });
-    if (existingUser)
+    if (existingUser) {
       return res.status(400).json({
         success: false,
-        message:
-          existingUser.phone === phone
-            ? "Phone number already registered"
-            : "Email already registered",
+        message: existingUser.phone === phone
+          ? "Phone number already registered"
+          : "Email already registered",
       });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // ✅ If Firebase verified the phone, mark as Active directly
     const newUser = await User.create({
       username,
       phone,
-      password: hashedPassword,
       email,
       barangay,
+      password: hashedPassword,
       role: "user",
-      status: "Pending Verification",
+      status: firebaseUid ? "Active" : "Pending Verification",
+      firebaseUid: firebaseUid || null,
     });
 
-    console.log("✅ User created:", newUser._id);
-
+    // ✅ Create admin notification
     await Notification.create({
       title: "New user registered",
       message: `A new farmer (${username}) has registered from ${barangay}.`,
       type: "user",
     });
 
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const otp = await Otp.create({
-      userId: newUser._id,
-      otpCode,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      lastSentAt: new Date(),
-    });
-
-    const sent = await sendOtpSms(phone, otpCode);
-    if (!sent)
-      return res.status(500).json({
-        success: false,
-        message: "User created, but OTP SMS failed to send. Please use resend option.",
-      });
-
     res.status(201).json({
       success: true,
-      message: "User registered successfully. OTP sent via SMS.",
-      otpId: otp._id,
+      message: firebaseUid
+        ? "User registered successfully (Firebase verified)."
+        : "User registered, pending verification.",
+      userId: newUser._id,
     });
+
   } catch (error) {
     console.error("❌ Registration error:", error);
     res.status(500).json({ success: false, message: "Server error during registration" });
