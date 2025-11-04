@@ -1,37 +1,39 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer"; // ✅ for Brevo SMTP
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Otp from "../models/Otp.js";
-import SibApiV3Sdk from "sib-api-v3-sdk"; // ✅ Brevo SDK
 
 const router = express.Router();
 
 /* ======================================================
-   📧 Helper: Send OTP Email via Brevo
+   📧 Helper: Send OTP Email via Brevo SMTP
 ====================================================== */
 async function sendOtpEmail(email, otpCode) {
   try {
-    console.log(`📤 Sending OTP via Brevo to: ${email}`);
+    console.log(`📤 Sending OTP via Brevo SMTP to: ${email}`);
 
-    // ✅ Configure Brevo API client
-    const defaultClient = SibApiV3Sdk.ApiClient.instance;
-    const apiKey = defaultClient.authentications["api-key"];
-    apiKey.apiKey = process.env.BREVO_API_KEY; // from .env or Render Environment
+    const transporter = nodemailer.createTransport({
+      host: process.env.BREVO_HOST || "smtp-relay.brevo.com",
+      port: parseInt(process.env.BREVO_PORT || "587"),
+      secure: false, // must be false for port 587
+      auth: {
+        user: process.env.BREVO_USER,
+        pass: process.env.BREVO_PASS,
+      },
+    });
 
-    const tranEmailApi = new SibApiV3Sdk.TransactionalEmailsApi();
-
-    // ✅ Email template
     const mailOptions = {
-      sender: { name: "Smart Crop", email: "l9impaz@gmail.com" }, // verified Brevo sender
-      to: [{ email }],
+      from: `"SmartCrop" <${process.env.BREVO_USER}>`,
+      to: email,
       subject: "SmartCrop OTP Verification",
-      htmlContent: `
+      html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
-          <h2 style="color: #2e7d32;">SmartCrop Verification</h2>
+          <h2 style="color:#2e7d32;">SmartCrop Verification</h2>
           <p>Hello! Your verification code is:</p>
-          <h1 style="color: #2e7d32; font-size: 28px;">${otpCode}</h1>
+          <h1 style="color:#2e7d32; font-size:28px;">${otpCode}</h1>
           <p>This code will expire in 5 minutes. Please enter it to activate your account.</p>
           <hr>
           <small style="color:#666;">This email was sent automatically by SmartCrop.</small>
@@ -39,9 +41,8 @@ async function sendOtpEmail(email, otpCode) {
       `,
     };
 
-    // ✅ Send the email
-    const response = await tranEmailApi.sendTransacEmail(mailOptions);
-    console.log("✅ OTP email sent successfully:", response.messageId || "No ID");
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ OTP email sent successfully:", info.response);
     return true;
   } catch (err) {
     console.error("❌ Error sending OTP via Brevo:", err.message);
@@ -64,10 +65,7 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({
-      $or: [{ phone }, { email }],
-    });
-
+    const existingUser = await User.findOne({ $or: [{ phone }, { email }] });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -136,7 +134,6 @@ router.post("/register", async (req, res) => {
 router.post("/resend-otp", async (req, res) => {
   try {
     const { phone, email } = req.body;
-
     if (!phone && !email) {
       return res
         .status(400)
@@ -151,7 +148,6 @@ router.post("/resend-otp", async (req, res) => {
     const recentOtp = await Otp.findOne({ userId: user._id }).sort({
       createdAt: -1,
     });
-
     if (
       recentOtp &&
       recentOtp.lastSentAt &&
@@ -197,7 +193,6 @@ router.post("/resend-otp", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
-
     if ((!phone && !username) || !password) {
       return res.status(400).json({
         success: false,
@@ -254,7 +249,6 @@ router.post("/login", async (req, res) => {
 router.post("/verify-otp", async (req, res) => {
   try {
     const { otpId, otpCode, phone } = req.body;
-
     if (!otpId || !otpCode || !phone)
       return res
         .status(400)
@@ -268,9 +262,10 @@ router.post("/verify-otp", async (req, res) => {
 
     if (otpRecord.expiresAt < new Date()) {
       await Otp.deleteOne({ _id: otpId });
-      return res
-        .status(400)
-        .json({ success: false, message: "OTP expired, please request a new one" });
+      return res.status(400).json({
+        success: false,
+        message: "OTP expired, please request a new one",
+      });
     }
 
     if (otpRecord.otpCode !== otpCode)
