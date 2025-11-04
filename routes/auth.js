@@ -192,6 +192,48 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error during login" });
   }
 });
+// Forgot Password (send OTP)
+router.post("/forgot-password", async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user)
+    return res.status(404).json({ success: false, message: "Email not found" });
+
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otp = await Otp.create({
+    userId: user._id,
+    otpCode,
+    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+  });
+
+  await sendOtpEmail(email, otpCode);
+  res.json({ success: true, message: "OTP sent", otpId: otp._id });
+});
+
+// Verify OTP for Reset
+router.post("/verify-reset-otp", async (req, res) => {
+  const { otpId, otpCode } = req.body;
+  const otp = await Otp.findById(otpId);
+  if (!otp || otp.otpCode !== otpCode)
+    return res.status(400).json({ success: false, message: "Invalid OTP" });
+  if (otp.expiresAt < new Date())
+    return res.status(400).json({ success: false, message: "OTP expired" });
+
+  res.json({ success: true, message: "OTP verified" });
+});
+
+// Reset Password
+router.post("/reset-password", async (req, res) => {
+  const { email, newPassword } = req.body;
+  const user = await User.findOne({ email });
+  if (!user)
+    return res.status(404).json({ success: false, message: "User not found" });
+
+  const hashed = await bcrypt.hash(newPassword, 10);
+  user.password = hashed;
+  await user.save();
+  res.json({ success: true, message: "Password updated successfully" });
+});
 
 // ✅ VERIFY OTP
 router.post("/verify-otp", async (req, res) => {
