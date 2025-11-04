@@ -196,9 +196,9 @@ router.post("/login", async (req, res) => {
 // ✅ VERIFY OTP
 router.post("/verify-otp", async (req, res) => {
   try {
-    const { otpId, otpCode, phone } = req.body;
-    if (!otpId || !otpCode || !phone)
-      return res.status(400).json({ success: false, message: "Missing OTP or phone information" });
+    const { otpId, otpCode, email } = req.body;
+    if (!otpId || !otpCode || !email)
+      return res.status(400).json({ success: false, message: "Missing OTP or email information" });
 
     const otpRecord = await Otp.findById(otpId);
     if (!otpRecord) return res.status(404).json({ success: false, message: "OTP record not found" });
