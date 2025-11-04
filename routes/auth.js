@@ -15,6 +15,10 @@ async function sendOtpSms(phone, otpCode) {
   try {
     console.log(`📤 Sending OTP via Semaphore to: ${phone}`);
 
+        const formattedNumber = phone.startsWith("0")
+      ? "+63" + phone.substring(1)
+      : phone;
+
     const message = `[SmartCrop] Your verification code is ${otpCode}. This code will expire in 5 minutes.`;
 
     const response = await axios.post("https://api.semaphore.co/api/v4/messages", {
