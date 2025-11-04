@@ -27,6 +27,7 @@ import dashboardRoutes from "./routes/dashboard.js";
 import supportRoutes from "./routes/support.js";
 import aiRoutes from "./routes/ai.js";
 import activityRoutes from "./routes/activityRoutes.js";
+import otpRoutes from "./routes/otp.js";
 
 dotenv.config();
 connectDB();
@@ -67,6 +68,7 @@ app.use("/api/yields", yieldRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/weather", weatherRoutes);
 app.use("/api/farm", farmRoutes);
+app.use("/api/otp", otpRoutes);
 
 // ✅ Health check route
 app.get("/health", (req, res) => res.json({ status: "ok" }));
