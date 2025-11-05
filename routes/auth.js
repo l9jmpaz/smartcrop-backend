@@ -22,24 +22,40 @@ function formatPhone(phone) {
 /* ======================================================
    📱 Helper: Send OTP via Semaphore (with detailed logs)
 ====================================================== */
+/* ======================================================
+   📱 Helper: Send OTP via ClickSend (replaces Semaphore)
+====================================================== */
 async function sendOtpSms(phone, otpCode) {
   try {
     const formattedPhone = formatPhone(phone);
-    console.log(`📤 Sending OTP via Semaphore to: ${formattedPhone}`);
+    console.log(`📤 Sending OTP via ClickSend to: ${formattedPhone}`);
+    const message = `Your SmartCrop verification code is ${otpCode}. Do not share this code.`;
 
-    const message = `Your SmartCrop verification code is ${otpCode}. Do not share this code with anyone.`;
+    const response = await axios.post(
+      "https://rest.clicksend.com/v3/sms/send",
+      {
+        messages: [
+          {
+            source: "nodejs",
+            body: message,
+            to: formattedPhone,
+            from: process.env.CLICKSEND_SENDER || "SmartCrop",
+          },
+        ],
+      },
+      {
+        auth: {
+          username: process.env.CLICKSEND_USERNAME, // your ClickSend username
+          password: process.env.CLICKSEND_API_KEY,  // your ClickSend API key
+        },
+        headers: { "Content-Type": "application/json" },
+      }
+    );
 
-    const response = await axios.post("https://api.semaphore.co/api/v4/messages", {
-      apikey: process.env.SEMAPHORE_API_KEY,
-      number: formattedPhone,
-      message: message,
-      sendername: process.env.SEMAPHORE_SENDER || "Semaphore",
-    });
-
-    console.log("✅ OTP sent successfully via Semaphore:", response.data);
+    console.log("✅ OTP sent via ClickSend:", response.data);
     return true;
   } catch (err) {
-    console.error("❌ Error sending OTP via Semaphore:");
+    console.error("❌ Error sending OTP via ClickSend:");
     if (err.response) {
       console.error("🔴 Status Code:", err.response.status);
       console.error("🔴 Error Data:", err.response.data);
