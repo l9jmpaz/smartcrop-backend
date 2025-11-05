@@ -39,7 +39,7 @@ async function sendOtpSms(phone, otpCode) {
             source: "nodejs",
             body: message,
             to: formattedPhone,
-            from: process.env.CLICKSEND_SENDER || "SmartCrop",
+            from: process.env.CLICKSEND_SENDER || "ClickSend",
           },
         ],
       },
