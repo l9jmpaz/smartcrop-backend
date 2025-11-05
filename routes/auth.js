@@ -25,11 +25,18 @@ function formatPhone(phone) {
 /* ======================================================
    📱 Helper: Send OTP via ClickSend (replaces Semaphore)
 ====================================================== */
+/* ======================================================
+   📱 Send OTP via ClickSend
+====================================================== */
 async function sendOtpSms(phone, otpCode) {
   try {
-    const formattedPhone = formatPhone(phone);
-    console.log(`📤 Sending OTP via ClickSend to: ${formattedPhone}`);
-    const message = `Your SmartCrop verification code is ${otpCode}. Do not share this code.`;
+    const formattedPhone = phone.startsWith("+63")
+      ? phone
+      : phone.startsWith("0")
+      ? "+63" + phone.slice(1)
+      : phone;
+
+    const message = `Your SmartCrop verification code is ${otpCode}. Do not share this code with anyone.`;
 
     const response = await axios.post(
       "https://rest.clicksend.com/v3/sms/send",
@@ -45,8 +52,8 @@ async function sendOtpSms(phone, otpCode) {
       },
       {
         auth: {
-          username: process.env.CLICKSEND_USERNAME, // your ClickSend username
-          password: process.env.CLICKSEND_API_KEY,  // your ClickSend API key
+          username: process.env.CLICKSEND_USERNAME,
+          password: process.env.CLICKSEND_API_KEY,
         },
         headers: { "Content-Type": "application/json" },
       }
@@ -54,13 +61,13 @@ async function sendOtpSms(phone, otpCode) {
 
     console.log("✅ OTP sent via ClickSend:", response.data);
     return true;
-  } catch (err) {
-    console.error("❌ Error sending OTP via ClickSend:");
-    if (err.response) {
-      console.error("🔴 Status Code:", err.response.status);
-      console.error("🔴 Error Data:", err.response.data);
+  } catch (error) {
+    console.error("❌ Failed to send OTP via ClickSend:");
+    if (error.response) {
+      console.error("Status:", error.response.status);
+      console.error("Data:", error.response.data);
     } else {
-      console.error("🔴 Message:", err.message);
+      console.error("Error:", error.message);
     }
     return false;
   }
