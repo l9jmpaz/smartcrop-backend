@@ -47,14 +47,14 @@ async function sendOtpSms(phone, otpCode) {
             source: "nodejs",
             body: message,
             to: formattedPhone,
-            from: process.env.CLICKSEND_SENDER || "ClickSend",
+            from: "ClickSend",
           },
         ],
       },
       {
         auth: {
-          username: process.env.CLICKSEND_USERNAME,
-          password: process.env.CLICKSEND_API_KEY,
+          username: "l9jmpaz@gmail.com",
+          password: "B5E9D64A-BB6E-AAD1-CAD8-636C3C8FD535",
         },
         headers: {
           "Content-Type": "application/json",
