@@ -37,6 +37,7 @@ async function sendOtpSms(phone, otpCode) {
       : phone;
 
     const message = `Your SmartCrop verification code is ${otpCode}.`;
+    console.log("📤 Sending OTP via ClickSend to:", formattedPhone);
 
     const response = await axios.post(
       "https://rest.clicksend.com/v3/sms/send",
@@ -46,7 +47,7 @@ async function sendOtpSms(phone, otpCode) {
             source: "nodejs",
             body: message,
             to: formattedPhone,
-            from: "ClickSend",
+            from: process.env.CLICKSEND_SENDER || "ClickSend",
           },
         ],
       },
@@ -62,10 +63,10 @@ async function sendOtpSms(phone, otpCode) {
       }
     );
 
-    console.log("✅ ClickSend response:", response.data);
+    console.log("✅ ClickSend Response:", response.data);
     return true;
   } catch (error) {
-    console.error("❌ ClickSend error:");
+    console.error("❌ ClickSend Error:");
     if (error.response) {
       console.error("Status:", error.response.status);
       console.error("Data:", error.response.data);
