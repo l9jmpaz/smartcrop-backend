@@ -9,26 +9,28 @@ import Otp from "../models/Otp.js";
 const router = express.Router();
 
 /* ======================================================
-   📞 Format phone number to correct PH format
+   PHONE FORMAT (Semaphore requires 09XXXXXXXXX)
 ====================================================== */
 function formatPhone(phone) {
   if (!phone) return "";
-  const trimmed = phone.toString().trim();
+  phone = phone.toString().trim();
 
-  // Semaphore requires 09XXXXXXXXX format
-  if (trimmed.startsWith("+63")) return "0" + trimmed.substring(3);
-  if (trimmed.startsWith("63")) return "0" + trimmed.substring(2);
+  // from +63XXXXXXXXXX → 09XXXXXXXXX
+  if (phone.startsWith("+63")) return "0" + phone.substring(3);
 
-  return trimmed;
+  // from 63XXXXXXXXXX → 09XXXXXXXXX
+  if (phone.startsWith("63")) return "0" + phone.substring(2);
+
+  // Already correct
+  return phone;
 }
 
 /* ======================================================
-   📩 Send OTP with Semaphore API
+   SEND OTP WITH SEMAPHORE
 ====================================================== */
 async function sendSemaphoreOtp(phone, otpCode) {
   try {
     const formattedPhone = formatPhone(phone);
-
     console.log("📤 Sending OTP via Semaphore to:", formattedPhone);
 
     const response = await axios.post(
@@ -37,12 +39,12 @@ async function sendSemaphoreOtp(phone, otpCode) {
         apikey: process.env.SEMAPHORE_API_KEY,
         number: formattedPhone,
         message: `Your SmartCrop OTP is ${otpCode}`,
-        sendername: process.env.SEMAPHORE_SENDER_ID, // must be approved
+        sendername: process.env.SEMAPHORE_SENDER_ID,
       },
       { headers: { "Content-Type": "application/json" } }
     );
 
-    console.log("✅ Semaphore SMS Response:", response.data);
+    console.log("✅ Semaphore Response:", response.data);
     return true;
   } catch (err) {
     console.error("❌ Semaphore Error:", err.response?.data || err.message);
@@ -51,7 +53,7 @@ async function sendSemaphoreOtp(phone, otpCode) {
 }
 
 /* ======================================================
-   👤 REGISTER USER
+   REGISTER USER
 ====================================================== */
 router.post("/register", async (req, res) => {
   try {
@@ -63,7 +65,9 @@ router.post("/register", async (req, res) => {
         message: "Missing required fields",
       });
 
-    const existingUser = await User.findOne({ $or: [{ phone }, { email }] });
+    const existingUser = await User.findOne({
+      $or: [{ phone }, { email }],
+    });
 
     if (existingUser)
       return res.status(400).json({
@@ -74,14 +78,14 @@ router.post("/register", async (req, res) => {
             : "Email already registered",
       });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 10);
 
     const newUser = await User.create({
       username,
       phone,
       email,
       barangay,
-      password: hashedPassword,
+      password: hashed,
       role: "user",
       status: "Pending Verification",
     });
@@ -104,14 +108,11 @@ router.post("/register", async (req, res) => {
 });
 
 /* ======================================================
-   🔁 RESEND OTP (REGISTRATION)
+   RESEND OTP FOR REGISTRATION
 ====================================================== */
 router.post("/resend-otp", async (req, res) => {
   try {
     const { phone } = req.body;
-
-    if (!phone)
-      return res.status(400).json({ success: false, message: "Phone required" });
 
     const user = await User.findOne({ phone });
     if (!user)
@@ -130,7 +131,7 @@ router.post("/resend-otp", async (req, res) => {
     if (!sent)
       return res.status(500).json({
         success: false,
-        message: "Failed to send SMS via Semaphore",
+        message: "Failed to send SMS",
       });
 
     res.json({
@@ -145,7 +146,7 @@ router.post("/resend-otp", async (req, res) => {
 });
 
 /* ======================================================
-   🔐 VERIFY REGISTRATION OTP
+   VERIFY REGISTRATION OTP
 ====================================================== */
 router.post("/verify-otp", async (req, res) => {
   try {
@@ -162,24 +163,23 @@ router.post("/verify-otp", async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
 
     await User.findOneAndUpdate({ phone }, { status: "Active" });
-
     await Otp.deleteOne({ _id: otpId });
 
-    res.json({ success: true, message: "Account verified successfully!" });
+    res.json({ success: true, message: "Account verified!" });
   } catch (err) {
-    console.error("❌ Verify OTP error:", err);
+    console.error("❌ Verify error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
 /* ======================================================
-   🔑 SEND RESET PASSWORD OTP
+   SEND RESET PASSWORD OTP
 ====================================================== */
 router.post("/send-reset-otp", async (req, res) => {
   try {
-    const { email } = req.body;
+    const { phone } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ phone });
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
@@ -191,17 +191,17 @@ router.post("/send-reset-otp", async (req, res) => {
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
 
-    const sent = await sendSemaphoreOtp(user.phone, otpCode);
+    const sent = await sendSemaphoreOtp(phone, otpCode);
     if (!sent)
       return res.status(500).json({
         success: false,
-        message: "Failed to send OTP via Semaphore",
+        message: "Failed to send reset OTP",
       });
 
     res.json({
       success: true,
-      message: "Reset OTP sent successfully",
       otpId: otp._id,
+      message: "Reset OTP sent",
     });
   } catch (err) {
     console.error("❌ Reset OTP error:", err);
@@ -210,7 +210,7 @@ router.post("/send-reset-otp", async (req, res) => {
 });
 
 /* ======================================================
-   ✔ VERIFY RESET PASSWORD OTP
+   VERIFY RESET PASSWORD OTP
 ====================================================== */
 router.post("/verify-reset-otp", async (req, res) => {
   try {
@@ -236,7 +236,7 @@ router.post("/verify-reset-otp", async (req, res) => {
 });
 
 /* ======================================================
-   🔐 LOGIN
+   LOGIN
 ====================================================== */
 router.post("/login", async (req, res) => {
   try {
@@ -247,10 +247,9 @@ router.post("/login", async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
 
     if (user.status === "Pending Verification")
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your account first",
-      });
+      return res
+        .status(403)
+        .json({ success: false, message: "Please verify your account first" });
 
     const match = await bcrypt.compare(password, user.password);
     if (!match)
