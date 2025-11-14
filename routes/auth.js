@@ -269,5 +269,37 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
+router.post("/change-password", async (req, res) => {
+  try {
+    const { phone, newPassword } = req.body;
+
+    if (!phone || !newPassword)
+      return res.status(400).json({
+        success: false,
+        message: "Missing phone or new password"
+      });
+
+    const user = await User.findOne({ phone });
+
+    if (!user)
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+
+    await User.updateOne({ phone }, { password: hashed });
+
+    res.json({
+      success: true,
+      message: "Password updated successfully"
+    });
+
+  } catch (err) {
+    console.error("❌ change-password error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 
 export default router;
