@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import axios from "axios"; // ✅ for Semaphore API
+import axios from "axios";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Otp from "../models/Otp.js";
@@ -9,95 +9,73 @@ import Otp from "../models/Otp.js";
 const router = express.Router();
 
 /* ======================================================
-   📞 Helper: Format PH Number for +63 format
+   📞 Format phone number to correct PH format
 ====================================================== */
 function formatPhone(phone) {
   if (!phone) return "";
   const trimmed = phone.toString().trim();
-  if (trimmed.startsWith("+63")) return trimmed;
-  if (trimmed.startsWith("0")) return "+63" + trimmed.substring(1);
+
+  // Semaphore requires 09XXXXXXXXX format
+  if (trimmed.startsWith("+63")) return "0" + trimmed.substring(3);
+  if (trimmed.startsWith("63")) return "0" + trimmed.substring(2);
+
   return trimmed;
 }
 
 /* ======================================================
-   📱 Helper: Send OTP via Semaphore (with detailed logs)
+   📩 Send OTP with Semaphore API
 ====================================================== */
-/* ======================================================
-   📱 Helper: Send OTP via ClickSend (replaces Semaphore)
-====================================================== */
-/* ======================================================
-   📱 Send OTP via ClickSend
-====================================================== */
-async function sendOtpSms(phone, otpCode) {
+async function sendSemaphoreOtp(phone, otpCode) {
   try {
-    const formattedPhone = phone.startsWith("+63")
-      ? phone
-      : phone.startsWith("0")
-      ? "+63" + phone.slice(1)
-      : phone;
+    const formattedPhone = formatPhone(phone);
 
-    const message = `Your SmartCrop verification code is ${otpCode}.`;
-    console.log("📤 Sending OTP via ClickSend to:", formattedPhone);
+    console.log("📤 Sending OTP via Semaphore to:", formattedPhone);
 
     const response = await axios.post(
-      "https://rest.clicksend.com/v3/sms/send",
+      "https://api.semaphore.co/api/v4/messages",
       {
-        messages: [
-          {
-            source: "nodejs",
-            body: message,
-            to: formattedPhone,
-            from: "ClickSend",
-          },
-        ],
+        apikey: process.env.SEMAPHORE_API_KEY,
+        number: formattedPhone,
+        message: `Your SmartCrop OTP is ${otpCode}`,
+        sendername: process.env.SEMAPHORE_SENDER_ID, // must be approved
       },
-      {
-        auth: {
-          username: "l9jmpaz@gmail.com",
-          password: "B5E9D64A-BB6E-AAD1-CAD8-636C3C8FD535",
-        },
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-      }
+      { headers: { "Content-Type": "application/json" } }
     );
 
-    console.log("✅ ClickSend Response:", response.data);
+    console.log("✅ Semaphore SMS Response:", response.data);
     return true;
-  } catch (error) {
-    console.error("❌ ClickSend Error:");
-    if (error.response) {
-      console.error("Status:", error.response.status);
-      console.error("Data:", error.response.data);
-    } else {
-      console.error("Message:", error.message);
-    }
+  } catch (err) {
+    console.error("❌ Semaphore Error:", err.response?.data || err.message);
     return false;
   }
 }
 
+/* ======================================================
+   👤 REGISTER USER
+====================================================== */
 router.post("/register", async (req, res) => {
   try {
-    const { username, phone, password, barangay, email, firebaseUid } = req.body;
+    const { username, phone, password, barangay, email } = req.body;
 
-    if (!username || !phone || !password || !barangay || !email) {
-      return res.status(400).json({ success: false, message: "Missing required fields" });
-    }
-
-    const existingUser = await User.findOne({ $or: [{ phone }, { email }] });
-    if (existingUser) {
+    if (!username || !phone || !password || !barangay || !email)
       return res.status(400).json({
         success: false,
-        message: existingUser.phone === phone
-          ? "Phone number already registered"
-          : "Email already registered",
+        message: "Missing required fields",
       });
-    }
+
+    const existingUser = await User.findOne({ $or: [{ phone }, { email }] });
+
+    if (existingUser)
+      return res.status(400).json({
+        success: false,
+        message:
+          existingUser.phone === phone
+            ? "Phone number already registered"
+            : "Email already registered",
+      });
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ If Firebase verified the phone, mark as Active directly
     const newUser = await User.create({
       username,
       phone,
@@ -105,67 +83,155 @@ router.post("/register", async (req, res) => {
       barangay,
       password: hashedPassword,
       role: "user",
-      status: firebaseUid ? "Active" : "Pending Verification",
-      firebaseUid: firebaseUid || null,
+      status: "Pending Verification",
     });
 
-    // ✅ Create admin notification
     await Notification.create({
       title: "New user registered",
-      message: `A new farmer (${username}) has registered from ${barangay}.`,
+      message: `Farmer ${username} registered from ${barangay}.`,
       type: "user",
     });
 
     res.status(201).json({
       success: true,
-      message: firebaseUid
-        ? "User registered successfully (Firebase verified)."
-        : "User registered, pending verification.",
+      message: "User created. Awaiting OTP verification.",
       userId: newUser._id,
     });
-
-  } catch (error) {
-    console.error("❌ Registration error:", error);
-    res.status(500).json({ success: false, message: "Server error during registration" });
+  } catch (err) {
+    console.error("❌ Registration error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
 /* ======================================================
-   🔁 RESEND OTP
+   🔁 RESEND OTP (REGISTRATION)
 ====================================================== */
 router.post("/resend-otp", async (req, res) => {
   try {
     const { phone } = req.body;
+
     if (!phone)
-      return res.status(400).json({ success: false, message: "Missing phone number" });
+      return res.status(400).json({ success: false, message: "Phone required" });
 
     const user = await User.findOne({ phone });
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    const recentOtp = await Otp.findOne({ userId: user._id }).sort({ createdAt: -1 });
-    if (recentOtp && recentOtp.lastSentAt && Date.now() - recentOtp.lastSentAt.getTime() < 50 * 1000)
-      return res.status(429).json({
-        success: false,
-        message: "Please wait 50 seconds before requesting another OTP.",
-      });
-
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const newOtp = await Otp.create({
+
+    const otp = await Otp.create({
       userId: user._id,
       otpCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
       lastSentAt: new Date(),
     });
 
-    const sent = await sendOtpSms(phone, otpCode);
+    const sent = await sendSemaphoreOtp(phone, otpCode);
     if (!sent)
-      return res.status(500).json({ success: false, message: "Failed to send OTP SMS" });
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send SMS via Semaphore",
+      });
 
-    res.json({ success: true, message: "OTP resent successfully.", otpId: newOtp._id });
+    res.json({
+      success: true,
+      message: "OTP sent successfully.",
+      otpId: otp._id,
+    });
   } catch (err) {
     console.error("❌ Resend OTP error:", err);
-    res.status(500).json({ success: false, message: "Server error during OTP resend" });
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+/* ======================================================
+   🔐 VERIFY REGISTRATION OTP
+====================================================== */
+router.post("/verify-otp", async (req, res) => {
+  try {
+    const { otpId, otpCode, phone } = req.body;
+
+    const otp = await Otp.findById(otpId);
+    if (!otp)
+      return res.status(404).json({ success: false, message: "OTP not found" });
+
+    if (otp.expiresAt < new Date())
+      return res.status(400).json({ success: false, message: "OTP expired" });
+
+    if (otp.otpCode !== otpCode)
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
+
+    await User.findOneAndUpdate({ phone }, { status: "Active" });
+
+    await Otp.deleteOne({ _id: otpId });
+
+    res.json({ success: true, message: "Account verified successfully!" });
+  } catch (err) {
+    console.error("❌ Verify OTP error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+/* ======================================================
+   🔑 SEND RESET PASSWORD OTP
+====================================================== */
+router.post("/send-reset-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const otp = await Otp.create({
+      userId: user._id,
+      otpCode,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    });
+
+    const sent = await sendSemaphoreOtp(user.phone, otpCode);
+    if (!sent)
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP via Semaphore",
+      });
+
+    res.json({
+      success: true,
+      message: "Reset OTP sent successfully",
+      otpId: otp._id,
+    });
+  } catch (err) {
+    console.error("❌ Reset OTP error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+/* ======================================================
+   ✔ VERIFY RESET PASSWORD OTP
+====================================================== */
+router.post("/verify-reset-otp", async (req, res) => {
+  try {
+    const { otpId, otpCode, email } = req.body;
+
+    const otp = await Otp.findById(otpId);
+    if (!otp)
+      return res.status(404).json({ success: false, message: "OTP not found" });
+
+    if (otp.expiresAt < new Date())
+      return res.status(400).json({ success: false, message: "OTP expired" });
+
+    if (otp.otpCode !== otpCode)
+      return res.status(400).json({ success: false, message: "Invalid OTP" });
+
+    await Otp.deleteOne({ _id: otpId });
+
+    res.json({ success: true, message: "OTP verified" });
+  } catch (err) {
+    console.error("❌ verify-reset-otp error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
@@ -175,21 +241,22 @@ router.post("/resend-otp", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
-    if ((!phone && !username) || !password)
-      return res.status(400).json({ success: false, message: "Missing username/phone or password" });
 
     const user = await User.findOne({ $or: [{ phone }, { username }] });
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
 
     if (user.status === "Pending Verification")
       return res.status(403).json({
         success: false,
-        message: "Please verify your account via OTP before logging in.",
+        message: "Please verify your account first",
       });
 
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword)
-      return res.status(401).json({ success: false, message: "Invalid password" });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match)
+      return res
+        .status(401)
+        .json({ success: false, message: "Incorrect password" });
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
@@ -197,61 +264,10 @@ router.post("/login", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.json({
-      success: true,
-      message: `${user.role === "admin" ? "Admin" : "User"} login successful`,
-      token,
-      user: {
-        _id: user._id,
-        username: user.username,
-        phone: user.phone,
-        barangay: user.barangay,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    console.error("❌ Login error:", error);
-    res.status(500).json({ success: false, message: "Server error during login" });
-  }
-});
-
-/* ======================================================
-   ✅ VERIFY OTP
-====================================================== */
-router.post("/verify-otp", async (req, res) => {
-  try {
-    const { otpId, otpCode, phone } = req.body;
-    if (!otpId || !otpCode || !phone)
-      return res.status(400).json({ success: false, message: "Missing OTP or phone information" });
-
-    const otpRecord = await Otp.findById(otpId);
-    if (!otpRecord)
-      return res.status(404).json({ success: false, message: "OTP record not found" });
-
-    if (otpRecord.expiresAt < new Date()) {
-      await Otp.deleteOne({ _id: otpId });
-      return res.status(400).json({ success: false, message: "OTP expired, please request a new one" });
-    }
-
-    if (otpRecord.otpCode !== otpCode)
-      return res.status(400).json({ success: false, message: "Invalid OTP code" });
-
-    const user = await User.findOneAndUpdate({ phone }, { status: "Active" }, { new: true });
-    await Otp.deleteOne({ _id: otpId });
-
-    res.json({
-      success: true,
-      message: "Account verified successfully!",
-      user: {
-        id: user._id,
-        username: user.username,
-        phone: user.phone,
-        barangay: user.barangay,
-      },
-    });
+    res.json({ success: true, token, user });
   } catch (err) {
-    console.error("❌ OTP verify error:", err);
-    res.status(500).json({ success: false, message: "Server error during OTP verification" });
+    console.error("❌ Login error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
