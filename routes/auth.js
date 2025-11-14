@@ -214,7 +214,7 @@ router.post("/send-reset-otp", async (req, res) => {
 ====================================================== */
 router.post("/verify-reset-otp", async (req, res) => {
   try {
-    const { otpId, otpCode, email } = req.body;
+    const { otpId, otpCode, phone } = req.body;
 
     const otp = await Otp.findById(otpId);
     if (!otp)
