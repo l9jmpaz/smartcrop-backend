@@ -7,15 +7,46 @@ import Crop from "../models/Crop.js";
 const router = express.Router();
 
 // 🟢 Fetch oversupply crops
+// 🟢 Fetch oversupply crops
 router.get("/oversupply", async (req, res) => {
   try {
     const crops = await Crop.find({ oversupply: true }).select("name");
+
     res.json({
       success: true,
-      data: crops.map((c) => c.name),
+      crops: crops.map((c) => c.name), // <-- FIXED (frontend expects "crops")
     });
   } catch (err) {
     console.error("Oversupply fetch error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+});
+// 🟡 Update oversupply crop list
+router.put("/oversupply", async (req, res) => {
+  try {
+    const { crops } = req.body;
+
+    if (!Array.isArray(crops))
+      return res
+        .status(400)
+        .json({ success: false, message: "crops_must_be_array" });
+
+    // Reset all crops oversupply = false
+    await Crop.updateMany({}, { oversupply: false });
+
+    // Set oversupply = true for crops in list
+    await Crop.updateMany(
+      { name: { $in: crops } },
+      { oversupply: true }
+    );
+
+    res.json({
+      success: true,
+      message: "oversupply_updated",
+      crops,
+    });
+  } catch (err) {
+    console.error("Oversupply update error:", err);
     res.status(500).json({ success: false, message: "server_error" });
   }
 });
