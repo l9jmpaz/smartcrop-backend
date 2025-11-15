@@ -1,47 +1,71 @@
-import Task from "../models/Task.js";
+// taskController.js
+import Farm from "../models/Farm.js";
 
-// ➕ Add new task
+// ➕ ADD NEW TASK
 export const addTask = async (req, res) => {
   try {
-    const { userId, fieldId, taskType, type, crop, date, fieldName, kilos } = req.body;
+    const { userId, fieldId, crop, type, date, kilos } = req.body;
 
-    const finalTaskType = taskType || type;
-    if (!userId || !fieldId || !finalTaskType || !date) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields (userId, fieldId, taskType, date)",
-      });
+    if (!userId || !fieldId || !type || !date) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    const task = await Task.create({
-      userId,
-      fieldId,
-      taskType: finalTaskType,
-      crop: crop || "Unspecified",
-      date,
-      fieldName,
+    // get farm
+    const farm = await Farm.findById(fieldId);
+    if (!farm) {
+      return res.status(404).json({ success: false, message: "Farm not found" });
+    }
+
+    const newTask = {
+      _id: new Date().getTime().toString(), // simpler unique ID
+      type,
+      crop,
+      date: new Date(date),
       completed: false,
       kilos: kilos || 0,
+      fieldName: farm.fieldName
+    };
+
+    farm.tasks.push(newTask);
+    await farm.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Task saved",
+      task: newTask
     });
 
-    res.status(201).json({ success: true, task });
-
   } catch (err) {
-    console.error("❌ Add task error:", err);
-    res.status(500).json({ success: false, message: "Server error adding task" });
+    console.error("❌ Add Task Error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
-// 📅 Get all tasks for a user
-export const getTasks = async (req, res) => {
-  try {
-    const tasks = await Task.find({ userId: req.params.userId })
-      .sort({ date: 1 });
 
-    res.json({ success: true, tasks });
+// ✔ COMPLETE TASK
+export const completeTask = async (req, res) => {
+  try {
+    const taskId = req.params.id;
+
+    // find farm containing this task
+    const farm = await Farm.findOne({ "tasks._id": taskId });
+    if (!farm) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    const task = farm.tasks.id(taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found in farm" });
+    }
+
+    task.completed = true;
+
+    await farm.save();
+
+    return res.json({ success: true, message: "Task completed" });
 
   } catch (err) {
-    console.error("❌ Fetch tasks error:", err);
-    res.status(500).json({ success: false, message: "Failed to fetch tasks" });
+    console.error("❌ Complete Task Error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
