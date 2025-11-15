@@ -151,14 +151,13 @@ router.get("/recommend/:userId", async (req, res) => {
         color: c.oversupply ? "orange" : "green",
         warning: c.oversupply ? "oversupply_warning" : null,
         details: [
-  `Field: ${farm.fieldName}`,
-  `Soil: Suitable for ${farm.soilType}`,
-  `Water Needs: ${c.waterRequirement}`,
-  `Season: Ideal for ${season} months in ${city}`,
-  `Temperature Range: ${c.minTemp}°C - ${c.maxTemp}°C`,
-  `Suitability Score: ${c.suitability}%`,
-  `Seed Type: ${c.seedType}`,
-  `Good until: ${untilMonth}`,
+  { key: "field_name", value: farm.fieldName },
+  { key: "soil_suitable", value: farm.soilType },
+  { key: "ideal_for", value: `${season} season in ${city}` },
+  { key: "temp_range", value: `${c.minTemp}°C - ${c.maxTemp}°C` },
+  { key: "suitability", value: `${c.suitability}%` },
+  { key: "seed_type", value: c.seedType },
+  { key: "good_until", value: untilMonth }
 ],
       }));
 
