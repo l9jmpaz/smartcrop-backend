@@ -39,9 +39,6 @@ router.put("/select-crop", saveSelectedCrop);
 // ARCHIVE FIELD (Instead of delete)
 router.delete("/:id", archiveField);
 
-// ------------------------- CROP SELECTION (AUTO TASK GENERATION) -------------------------
-router.patch("/:id/select-crop", selectCropForField);
-
 // USER MARKS HARVEST → archive + move to history
 router.patch("/:id/harvest", markFieldHarvested);
 
