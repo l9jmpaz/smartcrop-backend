@@ -11,6 +11,7 @@ import {
   markFieldHarvested,
   saveSelectedCrop,
   getCachedAIRecommendations,
+  getFieldDetails,
 } from "../controllers/farmController.js";
 
 const router = express.Router();
@@ -25,8 +26,11 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ------------------------- CACHED AI (PUT THIS FIRST!) -------------------------
+// ------------------------- CACHED AI -------------------------
 router.get("/cached-ai/:userId", getCachedAIRecommendations);
+
+// ------------------------- FIELD DETAILS (IMPORTANT ORDER!) -------------------------
+router.get("/:fieldId/details", getFieldDetails);   // <-- MUST COME BEFORE /:userId
 
 // ------------------------- FARM CRUD -------------------------
 router.get("/:userId", getFarmByUser);
@@ -34,12 +38,10 @@ router.post("/", addFarmField);
 router.put("/select-crop", saveSelectedCrop);
 router.put("/:id", updateFieldById);
 
-// Save selected crop
-
-// ARCHIVE FIELD (Instead of delete)
+// ARCHIVE FIELD
 router.delete("/:id", archiveField);
 
-// USER MARKS HARVEST → archive + move to history
+// MARK HARVESTED
 router.patch("/:id/harvest", markFieldHarvested);
 
 // ------------------------- TASKS -------------------------
@@ -47,7 +49,7 @@ router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
 router.patch("/tasks/:id/complete", completeTask);
 
-// COMPLETED fields list
+// COMPLETED FIELDS
 router.get("/completed/:userId", async (req, res) => {
   try {
     const farms = await Farm.find({

@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Farm from "../models/Farm.js";
 import axios from "axios";
 import Task from "../models/Task.js";
-
+import {getFieldDetails} from "../controllers/farmController.js";
 // =========================================================
 // 1️⃣ GET ACTIVE FIELDS (NOT ARCHIVED)
 // =========================================================
@@ -39,6 +39,27 @@ export const addFarmField = async (req, res) => {
   } catch (err) {
     console.error("❌ Add field error:", err);
     res.status(500).json({ success: false, message: "add_field_failed" });
+  }
+};
+export const getFieldDetails = async (req, res) => {
+  try {
+    const { fieldId } = req.params;
+
+    const farm = await Farm.findById(fieldId);
+
+    if (!farm) {
+      return res.status(404).json({ success: false, message: "Field not found" });
+    }
+
+    res.json({
+      success: true,
+      field: farm,
+      tasks: farm.tasks || [],
+    });
+
+  } catch (err) {
+    console.error("❌ Field details error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
