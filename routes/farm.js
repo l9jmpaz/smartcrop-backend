@@ -8,7 +8,6 @@ import {
   getTasksByUser,
   addTask,
   completeTask,
-  selectCropForField,
   markFieldHarvested,
   saveSelectedCrop,
   getCachedAIRecommendations,
