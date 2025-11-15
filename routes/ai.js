@@ -48,20 +48,17 @@ router.put("/oversupply", async (req, res) => {
 /* =========================================================
    🧠 MAIN AI RECOMMENDATION ROUTE
 ========================================================= */
-/* =========================================================
-   🧠 MAIN AI RECOMMENDATION ROUTE (FINAL FIXED VERSION)
-========================================================= */
 
 router.get("/recommend/:userId", async (req, res) => {
   try {
     const userId = req.params.userId;
 
-    // Validate user
+    /* ---------------- CHECK USER ---------------- */
     const user = await User.findById(userId);
     if (!user)
       return res.status(404).json({ success: false, message: "user_not_found" });
 
-    // Get all user farms
+    /* ---------------- FETCH FARMS ---------------- */
     const farms = await Farm.find({ userId, archived: false });
 
     if (farms.length === 0) {
@@ -87,19 +84,24 @@ router.get("/recommend/:userId", async (req, res) => {
       );
       temp = w.data.main.temp;
       condition = w.data.weather[0].description;
-    } catch (e) {
+    } catch {
       console.log("⚠️ Weather API failed. Using fallback.");
     }
 
     const month = new Date().getMonth() + 1;
     const season = month >= 6 && month <= 11 ? "rainy" : "dry";
 
+    /* ---------------- FETCH ALL CROPS ---------------- */
     const allCrops = await Crop.find({});
     const output = [];
 
-    /* --------- LOOP ALL FIELDS --------- */
+    /* =========================================================
+       LOOP EACH FIELD
+    ========================================================== */
+
     for (const farm of farms) {
-      // If user already selected crop → use cached recommendations
+
+      // If field already locked (user selected crop)
       if (farm.selectedCrop && farm.aiRecommendations?.length > 0) {
         output.push({
           fieldId: farm._id,
@@ -113,6 +115,7 @@ router.get("/recommend/:userId", async (req, res) => {
 
       const soil = (farm.soilType || "").toLowerCase();
 
+      /* ------------- FILTERING CROPS ------------- */
       let matched = allCrops.filter(crop => {
         const soilMatch = crop.soilTypes?.map(s => s.toLowerCase()).includes(soil);
         const seasonMatch = crop.idealSeason?.toLowerCase() === season;
@@ -130,7 +133,7 @@ router.get("/recommend/:userId", async (req, res) => {
         matched = allCrops.sort(() => 0.5 - Math.random()).slice(0, 3);
       }
 
-      // Compute suitability
+      /* ------------- SUITABILITY SCORE ------------- */
       matched = matched.map(c => {
         const mid = (c.minTemp + c.maxTemp) / 2;
         const deviation = Math.abs(temp - mid);
@@ -143,6 +146,13 @@ router.get("/recommend/:userId", async (req, res) => {
 
       const selected = matched.slice(0, 3);
 
+      /* ------------- FIXED untilMonth HERE ------------- */
+      const untilMonth =
+        season === "rainy"
+          ? "December 2025"
+          : "May 2026";
+
+      /* ------------- BUILD RECOMMENDATION LIST ------------- */
       const recs = selected.map(c => ({
         crop: c.name,
         title: c.oversupply
@@ -151,16 +161,17 @@ router.get("/recommend/:userId", async (req, res) => {
         color: c.oversupply ? "orange" : "green",
         warning: c.oversupply ? "oversupply_warning" : null,
         details: [
-  { key: "field_name", value: farm.fieldName },
-  { key: "soil_suitable", value: farm.soilType },
-  { key: "ideal_for", value: `${season} season in ${city}` },
-  { key: "temp_range", value: `${c.minTemp}°C - ${c.maxTemp}°C` },
-  { key: "suitability", value: `${c.suitability}%` },
-  { key: "seed_type", value: c.seedType },
-  { key: "good_until", value: untilMonth }
-],
+          { key: "field_name", value: farm.fieldName },
+          { key: "soil_suitable", value: farm.soilType },
+          { key: "ideal_for", value: `${season} season in ${city}` },
+          { key: "temp_range", value: `${c.minTemp}°C - ${c.maxTemp}°C` },
+          { key: "suitability", value: `${c.suitability}%` },
+          { key: "seed_type", value: c.seedType },
+          { key: "good_until", value: untilMonth }
+        ]
       }));
 
+      /* ------------- PUSH TO OUTPUT ------------- */
       output.push({
         fieldId: farm._id,
         fieldName: farm.fieldName,
@@ -170,7 +181,7 @@ router.get("/recommend/:userId", async (req, res) => {
       });
     }
 
-    /* -------- WEATHER TIP -------- */
+    /* ========== WEATHER TIPS ========== */
     let weatherTip = "weather_stable";
     if (condition.includes("rain") && season === "dry") weatherTip = "unexpected_rain_dry";
     else if (condition.includes("clear") && season === "rainy") weatherTip = "dry_spell_rainy";
@@ -189,4 +200,5 @@ router.get("/recommend/:userId", async (req, res) => {
     res.status(500).json({ success: false, message: "server_error" });
   }
 });
+
 export default router;
