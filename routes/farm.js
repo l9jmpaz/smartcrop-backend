@@ -31,10 +31,10 @@ router.get("/cached-ai/:userId", getCachedAIRecommendations);
 // ------------------------- FARM CRUD -------------------------
 router.get("/:userId", getFarmByUser);
 router.post("/", addFarmField);
+router.put("/select-crop", saveSelectedCrop);
 router.put("/:id", updateFieldById);
 
 // Save selected crop
-router.put("/select-crop", saveSelectedCrop);
 
 // ARCHIVE FIELD (Instead of delete)
 router.delete("/:id", archiveField);
