@@ -255,6 +255,7 @@ export const getCachedAIRecommendations = async (req, res) => {
     const farms = await Farm.find({ userId, archived: false });
 
     const data = farms.map((f) => ({
+      fieldId: f._id.toString(),
       fieldName: f.fieldName,
       soilType: f.soilType,
       recommendations: (f.aiRecommendations || []).map((crop) => ({
