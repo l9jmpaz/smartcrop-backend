@@ -1,382 +1,268 @@
-import Farm from "../models/Farm.js";
 import mongoose from "mongoose";
-import Notification from "../models/Notification.js";
-import User from "../models/User.js"; // 🧑 To fetch username for better messages
+import Farm from "../models/Farm.js";
+import axios from "axios";
 
-// ✅ Fetch all farms owned by a specific user
+// =========================================================
+// 1️⃣ GET ACTIVE FIELDS (NOT ARCHIVED)
+// =========================================================
 export const getFarmByUser = async (req, res) => {
   try {
-    const userId = req.params.userId;
-    const farms = await Farm.find({ userId });
+    const farms = await Farm.find({
+      userId: req.params.userId,
+      archived: false
+    }).sort({ createdAt: -1 });
 
-    if (!farms || farms.length === 0) {
-      return res.status(200).json({
-        success: true,
-        farms: [],
-        message: "No fields added yet.",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      farms,
-    });
+    res.json({ success: true, farms });
   } catch (err) {
-    console.error("❌ Error fetching farms:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while fetching farms.",
-    });
+    console.error("getFarmByUser error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
   }
 };
 
-// ✅ Add new task to a specific field (farm)
-export const addTask = async (req, res) => {
+// =========================================================
+// 2️⃣ ADD NEW FIELD
+// =========================================================
+export const addFarmField = async (req, res) => {
   try {
-    const { userId, fieldId, fieldName, date, type, crop, kilos } = req.body;
+    const field = new Farm({
+      ...req.body,
+      archived: false,
+    });
 
-    if (!userId || !fieldId || !date || !type) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Missing required fields." });
+    await field.save();
+
+    res.status(201).json({
+      success: true,
+      farm: field
+    });
+  } catch (err) {
+    console.error("❌ Add field error:", err);
+    res.status(500).json({ success: false, message: "add_field_failed" });
+  }
+};
+
+// =========================================================
+// 3️⃣ UPDATE FIELD
+// =========================================================
+export const updateFieldById = async (req, res) => {
+  try {
+    const updated = await Farm.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true }
+    );
+
+    if (!updated)
+      return res.status(404).json({ success: false, message: "field_not_found" });
+
+    res.json({ success: true, farm: updated });
+  } catch (err) {
+    console.error("updateField error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+};
+
+// =========================================================
+// 4️⃣ ARCHIVE FIELD (Instead of DELETE)
+// =========================================================
+export const archiveField = async (req, res) => {
+  try {
+    const field = await Farm.findByIdAndUpdate(
+      req.params.id,
+      { archived: true, completedAt: new Date() },
+      { new: true }
+    );
+
+    if (!field)
+      return res.status(404).json({ success: false, message: "field_not_found" });
+
+    res.json({ success: true, field });
+  } catch (err) {
+    console.error("archiveField error:", err);
+    res.status(500).json({ success: false, message: "archive_failed" });
+  }
+};
+
+// =========================================================
+// 5️⃣ SAVE SELECTED CROP + AI RECOMMENDATIONS (CACHED)
+// =========================================================
+export const saveSelectedCrop = async (req, res) => {
+  try {
+    const { fieldId, crop, recommendations } = req.body;
+
+    if (!fieldId || !crop) {
+      return res.status(400).json({
+        success: false,
+        message: "missing_fieldId_or_crop"
+      });
     }
 
     const farm = await Farm.findById(fieldId);
-    if (!farm) {
-      return res.status(404).json({ success: false, message: "Farm not found." });
-    }
+    if (!farm)
+      return res.status(404).json({ success: false, message: "field_not_found" });
+
+    farm.selectedCrop = crop;
+    farm.aiRecommendations = recommendations || [];
+
+    await farm.save();
+
+    res.json({
+      success: true,
+      message: "crop_saved",
+      crop,
+      recommendations
+    });
+  } catch (err) {
+    console.error("saveSelectedCrop error:", err);
+    res.status(500).json({ success: false, message: "save_crop_failed" });
+  }
+};
+
+// =========================================================
+// 6️⃣ MARK FIELD HARVESTED → ARCHIVE
+// =========================================================
+export const markFieldHarvested = async (req, res) => {
+  try {
+    const farm = await Farm.findById(req.params.id);
+
+    if (!farm)
+      return res.status(404).json({ success: false, message: "field_not_found" });
+
+    farm.archived = true;
+    farm.completedAt = new Date();
+
+    await farm.save();
+
+    res.json({ success: true, message: "field_harvested", farm });
+  } catch (err) {
+    console.error("markFieldHarvested:", err);
+    res.status(500).json({ success: false, message: "harvest_error" });
+  }
+};
+
+// =========================================================
+// 7️⃣ USER TASKS
+// =========================================================
+
+// GET TASKS BY USER
+export const getTasksByUser = async (req, res) => {
+  try {
+    const farms = await Farm.find({ userId: req.params.userId });
+
+    const all = farms.flatMap((f) => f.tasks);
+
+    res.json({ success: true, tasks: all });
+  } catch (err) {
+    console.error("getTasks error:", err);
+    res.status(500).json({ success: false, message: "load_tasks_failed" });
+  }
+};
+
+// ADD TASK
+export const addTask = async (req, res) => {
+  try {
+    const { fieldId, type, crop, date, fieldName, kilos } = req.body;
+
+    const farm = await Farm.findById(fieldId);
+    if (!farm)
+      return res.status(404).json({ success: false, message: "field_not_found" });
 
     const newTask = {
       _id: new mongoose.Types.ObjectId(),
-      userId: new mongoose.Types.ObjectId(userId),
       type,
       crop,
-      date: new Date(`${date}T12:00:00Z`),
-      fieldName: fieldName || farm.fieldName,
+      date,
+      fieldName,
       completed: false,
-      createdAt: new Date(),
-      kilos: kilos ? Number(kilos) : 0,
+      kilos: kilos || 0,
     };
 
     farm.tasks.push(newTask);
     await farm.save();
 
-    res.status(201).json({
-      success: true,
-      message: "Task added successfully.",
-      task: newTask,
-    });
+    res.json({ success: true, task: newTask });
   } catch (err) {
-    console.error("❌ Error adding task:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while adding task.",
-      error: err.message,
-    });
+    console.error("addTask error:", err);
+    res.status(500).json({ success: false, message: "add_task_failed" });
   }
 };
 
-// ✅ Get yield data by user (for all fields)
-export const getYieldDataByUser = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const farms = await Farm.find({ userId });
-
-    const yieldData = farms.map((farm) => {
-      const fieldSize = farm.fieldSize || 1;
-      const harvests = farm.tasks.filter(
-        (t) => t.type?.toLowerCase().includes("harvest") && t.kilos
-      );
-      const yearly = {};
-      harvests.forEach((t) => {
-        const year = new Date(t.date).getFullYear();
-        yearly[year] = (yearly[year] || 0) + t.kilos / fieldSize;
-      });
-      return {
-        fieldName: farm.fieldName,
-        yields: Object.entries(yearly).map(([year, y]) => ({
-          year: Number(year),
-          yield: y,
-        })),
-      };
-    });
-
-    res.json({ success: true, yieldData });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-};
-
-// ✅ Fetch all tasks for a specific user
-export const getTasksByUser = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const farms = await Farm.find({ userId });
-    if (!farms || farms.length === 0) {
-      return res.status(200).json({ success: true, tasks: [] });
-    }
-
-    const allTasks = farms.flatMap((farm) =>
-      (farm.tasks || []).map((task) => ({
-        _id: task._id,
-        ...task.toObject(),
-        fieldId: farm._id,
-        fieldName: farm.fieldName,
-      }))
-    );
-
-    res.status(200).json({
-      success: true,
-      count: allTasks.length,
-      tasks: allTasks,
-    });
-  } catch (err) {
-    console.error("❌ Error fetching tasks:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while fetching tasks.",
-      error: err.message,
-    });
-  }
-};
-
-// ✅ Mark a task as complete + notify admin
+// COMPLETE TASK
 export const completeTask = async (req, res) => {
   try {
-    const { id } = req.params;
-    const farm = await Farm.findOne({ "tasks._id": id });
-    if (!farm) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found in any farm.",
-      });
-    }
+    const taskId = req.params.id;
 
-    const task = farm.tasks.id(id);
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: "Task not found in the farm.",
-      });
-    }
+    const farm = await Farm.findOne({ "tasks._id": taskId });
+    if (!farm)
+      return res.status(404).json({ success: false, message: "task_not_found" });
+
+    const task = farm.tasks.find((t) => t._id.toString() === taskId);
+    if (!task)
+      return res.status(404).json({ success: false, message: "task_not_found" });
 
     task.completed = true;
+
+    // If this is a harvest task → archive field
+    if (task.type.toLowerCase() === "harvest") {
+      farm.archived = true;
+      farm.completedAt = new Date();
+    }
+
     await farm.save();
 
-    // 🟢 Notify admin about task completion
-    await Notification.create({
-      title: "Task Completed",
-      message: `Task "${task.type}" in field "${farm.fieldName}" has been completed.`,
-      type: "system",
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Task marked as completed successfully!",
-      task,
-    });
+    res.json({ success: true, message: "task_completed" });
   } catch (err) {
-    console.error("❌ Complete task error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while completing task.",
-      error: err.message,
-    });
+    console.error("completeTask error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
   }
 };
 
-// ✅ Update or create a single default farm
-export const updateFarm = async (req, res) => {
+// =========================================================
+// 8️⃣ RETURN CACHED AI RECOMMENDATIONS FOR USER
+// =========================================================
+export const getCachedAIRecommendations = async (req, res) => {
   try {
-    const { userId } = req.params;
-    const updates = req.body;
-    let farm = await Farm.findOne({ userId });
+    const userId = req.params.userId;
 
-    if (farm) {
-      farm = await Farm.findOneAndUpdate({ userId }, updates, { new: true });
-    } else {
-      farm = new Farm({ userId, ...updates });
-      await farm.save();
-    }
+    const farms = await Farm.find({ userId, archived: false });
 
-    await Notification.create({
-      title: "Farm Updated",
-      message: `Farm "${farm.fieldName || "Unnamed"}" has been updated by user ${userId}.`,
-      type: "system",
-    });
+    const data = farms.map((f) => ({
+      fieldName: f.fieldName,
+      soilType: f.soilType,
+      recommendations: (f.aiRecommendations || []).map((crop) => ({
+        title: `${crop} - good_option`,
+        color: "green",
+        details: [
+          `field_name:${f.fieldName}`,
+          `soil_suitable:${f.soilType}`,
+          `ideal_for:tanauan_city`,
+          `suitability:90`,
+          `seed_type:default`,
+          `good_until:2025`
+        ],
+        warning: null
+      })),
+    }));
 
-    res.status(200).json({
+    // weather fallback
+    const weather = {
+      city: "Tanauan City",
+      temp: 30,
+      condition: "Clear"
+    };
+
+    let tip = "weather_stable";
+    if (weather.temp > 33) tip = "high_temp_warning";
+    if (weather.temp < 20) tip = "cool_temp_advice";
+
+    res.json({
       success: true,
-      farm,
-      message: "Farm updated successfully.",
+      weather,
+      weatherTip: tip,
+      data
     });
   } catch (err) {
-    console.error("❌ Error updating farm:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while updating farm.",
-    });
+    console.error("cachedAI error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
   }
-};
-
-// ✅ Add new farm field (for multiple fields)
-export const addFarmField = async (req, res) => {
-  try {
-    const {
-      userId,
-      fieldName,
-      soilType,
-      wateringMethod,
-      lastYearCrop,
-      fieldSize,
-      location,
-    } = req.body;
-
-    if (!userId || !fieldName) {
-      return res
-        .status(400)
-        .json({ success: false, message: "userId and fieldName are required." });
-    }
-
-    const newFarm = new Farm({
-      userId,
-      fieldName,
-      soilType,
-      wateringMethod,
-      lastYearCrop,
-      fieldSize,
-      location,
-    });
-
-    const user = await User.findById(userId);
-    await Notification.create({
-      title: "New Field Added",
-      message: `${fieldName} was added by ${user?.username || "a farmer"} from ${user?.barangay || "unknown barangay"}.`,
-      type: "system",
-    });
-
-    await newFarm.save();
-    res.status(201).json({
-      success: true,
-      message: "Field added successfully!",
-      farm: newFarm,
-    });
-  } catch (err) {
-    console.error("❌ Error adding field:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while adding field.",
-      error: err.message,
-    });
-  }
-};
-
-// ✅ Update existing field by ID
-export const updateFieldById = async (req, res) => {
-  try {
-    const updated = await Farm.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!updated) {
-      return res.status(404).json({
-        success: false,
-        message: "Farm field not found.",
-      });
-    }
-
-    await Notification.create({
-      title: "Field Updated",
-      message: `Field "${updated.fieldName}" was updated successfully.`,
-      type: "system",
-    });
-
-    res.status(200).json({
-      success: true,
-      farm: updated,
-      message: "Field updated successfully.",
-    });
-  } catch (err) {
-    console.error("❌ Error updating field:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while updating field.",
-    });
-  }
-};
-
-// ✅ Get yield per field
-export const getYieldStats = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const farms = await Farm.find({ userId });
-    if (!farms || farms.length === 0) {
-      return res.status(404).json({ success: false, message: "No farms found for user." });
-    }
-
-    const yields = [];
-    farms.forEach((farm) => {
-      const harvests = farm.tasks.filter(
-        (t) => t.type.toLowerCase() === "harvest" && t.completed && t.date
-      );
-
-      if (harvests.length > 0) {
-        const groupedByYear = {};
-        harvests.forEach((h) => {
-          const year = new Date(h.date).getFullYear();
-          if (!groupedByYear[year]) groupedByYear[year] = [];
-          groupedByYear[year].push(h);
-        });
-
-        Object.keys(groupedByYear).forEach((year) => {
-          const totalKilos = groupedByYear[year].reduce((sum, h) => sum + (h.kilos || 0), 0);
-          const area = farm.fieldSize || 1;
-          const yieldPerHectare = totalKilos / area;
-          yields.push({
-            fieldId: farm._id,
-            fieldName: farm.fieldName,
-            crop: farm.lastYearCrop,
-            year: parseInt(year),
-            yield: yieldPerHectare.toFixed(2),
-          });
-        });
-      }
-    });
-
-    return res.status(200).json({ success: true, yields });
-  } catch (err) {
-    console.error("❌ Error fetching yield stats:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while calculating yields.",
-      error: err.message,
-    });
-  }
-};
-
-// ✅ Delete field by ID + notify
-export const deleteFieldById = async (req, res) => {
-  try {
-    const deleted = await Farm.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Farm field not found.",
-      });
-    }
-
-    await Notification.create({
-      title: "Field Deleted",
-      message: `Farm field "${deleted.fieldName}" was deleted by user ${deleted.userId}.`,
-      type: "system",
-    });
-
-    res.status(200).json({
-      success: true,
-      message: "Farm field deleted successfully.",
-    });
-  } catch (err) {
-    console.error("❌ Error deleting field:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while deleting field.",
-    });
-  }
-};
+}

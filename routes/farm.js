@@ -1,20 +1,22 @@
-
 import express from "express";
 import Farm from "../models/Farm.js";
 import {
   getFarmByUser,
-  addTask,
-  getTasksByUser,
-  completeTask,
-  updateFarm,
   addFarmField,
-  getYieldDataByUser,
-  getYieldStats,
-  updateFieldById
+  updateFieldById,
+  archiveField,
+  getTasksByUser,
+  addTask,
+  completeTask,
+  selectCropForField,
+  markFieldHarvested,
+  saveSelectedCrop,
+  getCachedAIRecommendations,
 } from "../controllers/farmController.js";
 
 const router = express.Router();
-// ✅ Get all farms (for Admin Dashboard)
+
+// ------------------------- ADMIN ROUTES -------------------------
 router.get("/", async (req, res) => {
   try {
     const farms = await Farm.find().populate("userId", "username barangay");
@@ -24,18 +26,43 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 🟢 FARM ROUTES
+// ------------------------- CACHED AI (PUT THIS FIRST!) -------------------------
+router.get("/cached-ai/:userId", getCachedAIRecommendations);
+
+// ------------------------- FARM CRUD -------------------------
 router.get("/:userId", getFarmByUser);
 router.post("/", addFarmField);
 router.put("/:id", updateFieldById);
 
-// 🟢 TASK ROUTES
+// Save selected crop
+router.put("/select-crop", saveSelectedCrop);
+
+// ARCHIVE FIELD (Instead of delete)
+router.delete("/:id", archiveField);
+
+// ------------------------- CROP SELECTION (AUTO TASK GENERATION) -------------------------
+router.patch("/:id/select-crop", selectCropForField);
+
+// USER MARKS HARVEST → archive + move to history
+router.patch("/:id/harvest", markFieldHarvested);
+
+// ------------------------- TASKS -------------------------
 router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
 router.patch("/tasks/:id/complete", completeTask);
 
-// 🟢 UPDATE DEFAULT FARM
-router.put("/update/:userId", updateFarm);
-router.get("/yields/:userId", getYieldDataByUser);
-router.get("/yields/:userId", getYieldStats);
+// COMPLETED fields list
+router.get("/completed/:userId", async (req, res) => {
+  try {
+    const farms = await Farm.find({
+      userId: req.params.userId,
+      status: "completed",
+    }).sort({ completedAt: -1 });
+
+    res.json({ success: true, completed: farms });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;
