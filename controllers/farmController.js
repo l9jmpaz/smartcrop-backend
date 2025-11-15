@@ -65,21 +65,27 @@ export const updateFieldById = async (req, res) => {
 // =========================================================
 // 4️⃣ ARCHIVE FIELD (Instead of DELETE)
 // =========================================================
+
 export const archiveField = async (req, res) => {
   try {
-    const field = await Farm.findByIdAndUpdate(
-      req.params.id,
-      { archived: true, completedAt: new Date() },
-      { new: true }
-    );
+    const { id } = req.params;
 
-    if (!field)
-      return res.status(404).json({ success: false, message: "field_not_found" });
+    // 1. Delete all tasks belonging to this field
+    await Task.deleteMany({ fieldId: id });
 
-    res.json({ success: true, field });
+    // 2. Delete the field itself
+    await Farm.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Field deleted and all related tasks removed",
+    });
   } catch (err) {
-    console.error("archiveField error:", err);
-    res.status(500).json({ success: false, message: "archive_failed" });
+    console.error("❌ archiveField error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete field",
+    });
   }
 };
 
