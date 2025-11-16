@@ -297,16 +297,16 @@ export const getCachedAIRecommendations = async (req, res) => {
       fieldName: f.fieldName,
       soilType: f.soilType,
       recommendations: (f.aiRecommendations || []).map((crop) => ({
-        title: `${crop} - good_option`,
+        title: `${crop} - Good Option`,
         color: "green",
         details: [
-          `field_name:${f.fieldName}`,
-          `soil_suitable:${f.soilType}`,
-          `ideal_for:tanauan_city`,
-          `suitability:90`,
-          `seed_type:default`,
-          `good_until:2025`
-        ],
+  "🌾 Field: " + f.fieldName,
+  "🟫 Soil: " + f.soilType,
+  "🗓️ Season: Ideal for planting in Tanauan City",
+  "📊 Suitability Score: 90%",
+  "🌱 Seed Type: Default",
+  "⏳ Good until: 2025"
+],
         warning: null
       })),
     }));
