@@ -43,29 +43,10 @@ export const addTask = async (req, res) => {
 
 
 // ✔ COMPLETE TASK
+// taskController.js
 export const completeTask = async (req, res) => {
-  try {
-    const taskId = req.params.id;
-
-    // find farm containing this task
-    const farm = await Farm.findOne({ "tasks._id": taskId });
-    if (!farm) {
-      return res.status(404).json({ success: false, message: "Task not found" });
-    }
-
-    const task = farm.tasks.id(taskId);
-    if (!task) {
-      return res.status(404).json({ success: false, message: "Task not found in farm" });
-    }
-
-    task.completed = true;
-
-    await farm.save();
-
-    return res.json({ success: true, message: "Task completed" });
-
-  } catch (err) {
-    console.error("❌ Complete Task Error:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
+  return res.json({
+    success: false,
+    message: "This endpoint is no longer used. Use /farm/tasks/:id/complete instead."
+  });
 };

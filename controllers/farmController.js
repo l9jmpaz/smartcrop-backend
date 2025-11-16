@@ -216,32 +216,52 @@ export const addTask = async (req, res) => {
 };
 
 // COMPLETE TASK
+// farmController.js
 export const completeTask = async (req, res) => {
   try {
     const taskId = req.params.id;
+    const { kilos } = req.body; // For harvesting
 
+    // Find farm containing the task
     const farm = await Farm.findOne({ "tasks._id": taskId });
-    if (!farm)
-      return res.status(404).json({ success: false, message: "task_not_found" });
+    if (!farm) {
+      return res.status(404).json({ success: false, message: "Farm task not found" });
+    }
 
-    const task = farm.tasks.find((t) => t._id.toString() === taskId);
-    if (!task)
-      return res.status(404).json({ success: false, message: "task_not_found" });
+    const task = farm.tasks.find(t => t._id.toString() === taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
 
+    // Mark task as completed
     task.completed = true;
 
-    // If this is a harvest task → archive field
-    if (task.type.toLowerCase() === "harvest") {
-      farm.archived = true;
-      farm.completedAt = new Date();
+    // 🌱 If PLANTING → set plantedDate
+    if (task.type.toLowerCase().includes("plant")) {
+      farm.plantedDate = task.date;
+    }
+
+    // 🌾 If HARVESTING → save kilos + close field
+    if (task.type.toLowerCase().includes("harvest")) {
+      if (kilos) {
+        task.kilos = Number(kilos);
+      }
+      farm.harvestDate = task.date;
+      farm.archived = true;       // hide from dropdown
+      farm.completedAt = new Date(); // used for yield analytics
     }
 
     await farm.save();
 
-    res.json({ success: true, message: "task_completed" });
+    return res.json({
+      success: true,
+      message: "Task completed successfully",
+      task,
+    });
+
   } catch (err) {
-    console.error("completeTask error:", err);
-    res.status(500).json({ success: false, message: "server_error" });
+    console.error("❌ completeTask error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
