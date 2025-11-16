@@ -30,23 +30,25 @@ router.get("/", async (req, res) => {
 // ------------------------- CACHED AI -------------------------
 router.get("/cached-ai/:userId", getCachedAIRecommendations);
 
-// ------------------------- FIELD DETAILS -------------------------
-router.get("/field/:fieldId/details", getFieldDetails);
-
-// ------------------------- COMPLETED (ARCHIVED) FIELDS -------------------------
+// ------------------------- COMPLETED FIELDS (MUST COME BEFORE /:userId) -------------------------
 router.get("/completed/:userId", getCompletedFields);
 
+// ------------------------- FIELD DETAILS -------------------------
+router.get("/:fieldId/details", getFieldDetails);
+
 // ------------------------- FARM CRUD -------------------------
-router.get("/user/:userId", getFarmByUser);
+router.get("/:userId", getFarmByUser);
 router.post("/", addFarmField);
 router.put("/select-crop", saveSelectedCrop);
 router.put("/:id", updateFieldById);
+
+// DELETE / ARCHIVE FIELD
 router.delete("/:id", archiveField);
 
-// ------------------------- MARK HARVEST (ARCHIVE) -------------------------
+// MARK HARVESTED
 router.patch("/:id/harvest", markFieldHarvested);
 
-// ------------------------- TASK ROUTES -------------------------
+// ------------------------- TASKS -------------------------
 router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
 router.patch("/tasks/:id/complete", completeTask);
