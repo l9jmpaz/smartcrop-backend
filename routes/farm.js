@@ -17,7 +17,9 @@ import {
 
 const router = express.Router();
 
-// ------------------------- ADMIN ROUTES -------------------------
+/* ==========================================================
+   ADMIN: GET ALL FARMS (Populated with username + barangay)
+========================================================== */
 router.get("/", async (req, res) => {
   try {
     const farms = await Farm.find().populate("userId", "username barangay");
@@ -27,28 +29,46 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ------------------------- CACHED AI -------------------------
+/* ==========================================================
+   CACHED AI RECOMMENDATIONS
+========================================================== */
 router.get("/cached-ai/:userId", getCachedAIRecommendations);
 
-// ------------------------- COMPLETED FIELDS (MUST COME BEFORE /:userId) -------------------------
+/* ==========================================================
+   COMPLETED / ARCHIVED FIELDS (IMPORTANT ORDER)
+========================================================== */
 router.get("/completed/:userId", getCompletedFields);
 
-// ------------------------- FIELD DETAILS -------------------------
+/* ==========================================================
+   FIELD DETAILS (IMPORTANT ORDER)
+========================================================== */
 router.get("/:fieldId/details", getFieldDetails);
 
-// ------------------------- FARM CRUD -------------------------
+/* ==========================================================
+   FARM DATA FOR USER (ACTIVE FIELDS)
+========================================================== */
 router.get("/:userId", getFarmByUser);
+
+/* ==========================================================
+   FARM CRUD
+========================================================== */
 router.post("/", addFarmField);
 router.put("/select-crop", saveSelectedCrop);
 router.put("/:id", updateFieldById);
 
-// DELETE / ARCHIVE FIELD
+/* ==========================================================
+   DELETE / ARCHIVE FIELD
+========================================================== */
 router.delete("/:id", archiveField);
 
-// MARK HARVESTED
+/* ==========================================================
+   MARK FIELD HARVESTED
+========================================================== */
 router.patch("/:id/harvest", markFieldHarvested);
 
-// ------------------------- TASKS -------------------------
+/* ==========================================================
+   TASKS
+========================================================== */
 router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
 router.patch("/tasks/:id/complete", completeTask);
