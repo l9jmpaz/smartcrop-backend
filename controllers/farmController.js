@@ -4,21 +4,17 @@ import axios from "axios";
 import Task from "../models/Task.js";
 
 // =========================================================
-// GLOBAL POPULATE SETTINGS (SAFE)
-// =========================================================
-const FARM_POPULATE = { path: "userId", select: "username barangay" };
-
-// =========================================================
 // 1️⃣ GET ACTIVE FIELDS (NOT ARCHIVED)
 // =========================================================
+// 1️⃣ GET ACTIVE FIELDS (NOT ARCHIVED)
 export const getFarmByUser = async (req, res) => {
   try {
     const farms = await Farm.find({
       userId: req.params.userId,
-      archived: false,
+      archived: false
     })
-      .populate(FARM_POPULATE)
-      .sort({ createdAt: -1 });
+    .populate("userId", "username barangay")   // ✅ ADDED
+    .sort({ createdAt: -1 });
 
     res.json({ success: true, farms });
   } catch (err) {
@@ -26,7 +22,6 @@ export const getFarmByUser = async (req, res) => {
     res.status(500).json({ success: false, message: "server_error" });
   }
 };
-
 // =========================================================
 // 2️⃣ ADD NEW FIELD
 // =========================================================
@@ -39,26 +34,20 @@ export const addFarmField = async (req, res) => {
 
     await field.save();
 
-    const populated = await Farm.findById(field._id).populate(FARM_POPULATE);
-
     res.status(201).json({
       success: true,
-      farm: populated,
+      farm: field
     });
   } catch (err) {
     console.error("❌ Add field error:", err);
     res.status(500).json({ success: false, message: "add_field_failed" });
   }
 };
-
-// =========================================================
-// 3️⃣ FIELD DETAILS
-// =========================================================
 export const getFieldDetails = async (req, res) => {
   try {
     const { fieldId } = req.params;
 
-    const farm = await Farm.findById(fieldId).populate(FARM_POPULATE);
+    const farm = await Farm.findById(fieldId);
 
     if (!farm) {
       return res.status(404).json({ success: false, message: "Field not found" });
@@ -69,6 +58,7 @@ export const getFieldDetails = async (req, res) => {
       field: farm,
       tasks: farm.tasks || [],
     });
+
   } catch (err) {
     console.error("❌ Field details error:", err);
     res.status(500).json({ success: false, message: "Server error" });
@@ -76,6 +66,7 @@ export const getFieldDetails = async (req, res) => {
 };
 
 // =========================================================
+// 3️⃣ UPDATE FIELD
 // =========================================================
 export const updateFieldById = async (req, res) => {
   try {
@@ -83,7 +74,7 @@ export const updateFieldById = async (req, res) => {
       req.params.id,
       { $set: req.body },
       { new: true }
-    ).populate(FARM_POPULATE);
+    );
 
     if (!updated)
       return res.status(404).json({ success: false, message: "field_not_found" });
@@ -96,13 +87,17 @@ export const updateFieldById = async (req, res) => {
 };
 
 // =========================================================
-// 5️⃣ ARCHIVE FIELD (DELETE FIELD + TASKS)
+// 4️⃣ ARCHIVE FIELD (Instead of DELETE)
 // =========================================================
+
 export const archiveField = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // 1. Delete all tasks belonging to this field
     await Task.deleteMany({ fieldId: id });
+
+    // 2. Delete the field itself
     await Farm.findByIdAndDelete(id);
 
     return res.status(200).json({
@@ -119,17 +114,20 @@ export const archiveField = async (req, res) => {
 };
 
 // =========================================================
-// 6️⃣ SAVE SELECTED CROP + AI RECOMMENDATIONS
+// 5️⃣ SAVE SELECTED CROP + AI RECOMMENDATIONS (CACHED)
 // =========================================================
 export const saveSelectedCrop = async (req, res) => {
   try {
     const { fieldId, crop, recommendations } = req.body;
 
-    if (!fieldId || !crop)
-      return res.status(400).json({ success: false, message: "missing_fieldId_or_crop" });
+    if (!fieldId || !crop) {
+      return res.status(400).json({
+        success: false,
+        message: "missing_fieldId_or_crop"
+      });
+    }
 
     const farm = await Farm.findById(fieldId);
-
     if (!farm)
       return res.status(404).json({ success: false, message: "field_not_found" });
 
@@ -138,12 +136,11 @@ export const saveSelectedCrop = async (req, res) => {
 
     await farm.save();
 
-    const populated = await Farm.findById(fieldId).populate(FARM_POPULATE);
-
     res.json({
       success: true,
       message: "crop_saved",
-      farm: populated,
+      crop,
+      recommendations
     });
   } catch (err) {
     console.error("saveSelectedCrop error:", err);
@@ -152,7 +149,7 @@ export const saveSelectedCrop = async (req, res) => {
 };
 
 // =========================================================
-// 7️⃣ MARK FIELD HARVESTED + ARCHIVE
+// 6️⃣ MARK FIELD HARVESTED → ARCHIVE
 // =========================================================
 export const markFieldHarvested = async (req, res) => {
   try {
@@ -166,9 +163,7 @@ export const markFieldHarvested = async (req, res) => {
 
     await farm.save();
 
-    const populated = await Farm.findById(farm._id).populate(FARM_POPULATE);
-
-    res.json({ success: true, message: "field_harvested", farm: populated });
+    res.json({ success: true, message: "field_harvested", farm });
   } catch (err) {
     console.error("markFieldHarvested:", err);
     res.status(500).json({ success: false, message: "harvest_error" });
@@ -176,83 +171,170 @@ export const markFieldHarvested = async (req, res) => {
 };
 
 // =========================================================
-// 8️⃣ GET TASKS BY USER
+// 7️⃣ USER TASKS
 // =========================================================
+
+// GET TASKS BY USER
 export const getTasksByUser = async (req, res) => {
   try {
-    const farms = await Farm.find({ userId: req.params.userId }).populate(
-      FARM_POPULATE
-    );
+    const farms = await Farm.find({ userId: req.params.userId });
 
-    const allTasks = farms.flatMap((f) =>
-      (f.tasks || []).map((t) => ({
-        ...t,
-        fieldName: f.fieldName,
-        crop: f.selectedCrop,
-        user: f.userId,
-      }))
-    );
+    const all = farms.flatMap((f) => f.tasks);
 
-    res.json({ success: true, tasks: allTasks });
+    res.json({ success: true, tasks: all });
   } catch (err) {
-    console.error("getTasksByUser error:", err);
-    res.status(500).json({ success: false, message: "server_error" });
+    console.error("getTasks error:", err);
+    res.status(500).json({ success: false, message: "load_tasks_failed" });
   }
 };
 
-// =========================================================
-// 9️⃣ COMPLETE TASK (PLANTING → set plantedDate)
-// =========================================================
+// ADD TASK
+export const addTask = async (req, res) => {
+  try {
+    const { fieldId, type, crop, date, fieldName, kilos } = req.body;
+
+    const farm = await Farm.findById(fieldId);
+    if (!farm)
+      return res.status(404).json({ success: false, message: "field_not_found" });
+
+    const newTask = {
+      _id: new mongoose.Types.ObjectId(),
+      type,
+      crop,
+      date,
+      fieldName,
+      completed: false,
+      kilos: kilos || 0,
+    };
+
+    farm.tasks.push(newTask);
+    await farm.save();
+
+    res.json({ success: true, task: newTask });
+  } catch (err) {
+    console.error("addTask error:", err);
+    res.status(500).json({ success: false, message: "add_task_failed" });
+  }
+};
+
+// COMPLETE TASK
+// farmController.js
 export const completeTask = async (req, res) => {
   try {
     const taskId = req.params.id;
+    const { kilos } = req.body; // For harvesting
 
-    const task = await Task.findById(taskId);
-    if (!task)
-      return res.status(404).json({ success: false, message: "task_not_found" });
+    // Find farm containing the task
+    const farm = await Farm.findOne({ "tasks._id": taskId });
+    if (!farm) {
+      return res.status(404).json({ success: false, message: "Farm task not found" });
+    }
 
+    const task = farm.tasks.find(t => t._id.toString() === taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    // Mark task as completed
     task.completed = true;
 
-    await task.save();
-
-    // If planting → set plantedDate on farm
-    if (task.type?.toLowerCase().includes("plant")) {
-      await Farm.findByIdAndUpdate(task.fieldId, {
-        plantedDate: new Date(),
-      });
+    // 🌱 If PLANTING → set plantedDate
+    if (task.type.toLowerCase().includes("plant")) {
+      farm.plantedDate = task.date;
     }
 
-    // If harvesting → store kilos + harvestDate + archive
-    if (task.type?.toLowerCase().includes("harvest")) {
-      await Farm.findByIdAndUpdate(task.fieldId, {
-        harvestDate: new Date(),
-        archived: true,
-        completedAt: new Date(),
-      });
+    // 🌾 If HARVESTING → save kilos + close field
+    if (task.type.toLowerCase().includes("harvest")) {
+      if (kilos) {
+        task.kilos = Number(kilos);
+      }
+      farm.harvestDate = task.date;
+      farm.archived = true;       // hide from dropdown
+      farm.completedAt = new Date(); // used for yield analytics
     }
 
-    res.json({ success: true, task });
+    await farm.save();
+
+    return res.json({
+      success: true,
+      message: "Task completed successfully",
+      task,
+    });
+
   } catch (err) {
-    console.error("completeTask error:", err);
-    res.status(500).json({ success: false, message: "task_update_failed" });
+    console.error("❌ completeTask error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
-
-// =========================================================
-// 🔟 GET COMPLETED (ARCHIVED) FIELDS
-// =========================================================
+// 7️⃣ RETURN COMPLETED FIELDS
 export const getCompletedFields = async (req, res) => {
   try {
-    const fields = await Farm.find({
-      userId: req.params.userId,
-      archived: true,
-    })
-      .populate(FARM_POPULATE)
-      .sort({ completedAt: -1 });
+    const userId = req.params.userId;
 
-    res.json({ success: true, completed: fields });
+    const fields = await Farm.find({
+      userId,
+      archived: true
+    })
+    .populate("userId", "username barangay")   // ✅ ADDED
+    .sort({ completedAt: -1 });
+
+    res.json({
+      success: true,
+      completed: fields
+    });
+
   } catch (err) {
     console.error("getCompletedFields error:", err);
     res.status(500).json({ success: false, message: "server_error" });
   }
 };
+// =========================================================
+// 8️⃣ RETURN CACHED AI RECOMMENDATIONS FOR USER
+// =========================================================
+export const getCachedAIRecommendations = async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const farms = await Farm.find({ userId, archived: false });
+
+    const data = farms.map((f) => ({
+      fieldId: f._id.toString(),
+      fieldName: f.fieldName,
+      soilType: f.soilType,
+      recommendations: (f.aiRecommendations || []).map((crop) => ({
+        title: `${crop} - Good Option`,
+        color: "green",
+        details: [
+  "🌾 Field: " + f.fieldName,
+  "🟫 Soil: " + f.soilType,
+  "🗓️ Season: Ideal for planting in Tanauan City",
+  "📊 Suitability Score: 90%",
+  "🌱 Seed Type: Default",
+  "⏳ Good until: 2025"
+],
+        warning: null
+      })),
+    }));
+
+    // weather fallback
+    const weather = {
+      city: "Tanauan City",
+      temp: 30,
+      condition: "Clear"
+    };
+
+    let tip = "weather_stable";
+    if (weather.temp > 33) tip = "high_temp_warning";
+    if (weather.temp < 20) tip = "cool_temp_advice";
+
+    res.json({
+      success: true,
+      weather,
+      weatherTip: tip,
+      data
+    });
+  } catch (err) {
+    console.error("cachedAI error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+}
