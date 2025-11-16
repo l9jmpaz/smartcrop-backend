@@ -9,6 +9,7 @@ import {
   addTask,
   completeTask,
   markFieldHarvested,
+  getCompletedFields,
   saveSelectedCrop,
   getCachedAIRecommendations,
   getFieldDetails,
@@ -37,7 +38,7 @@ router.get("/:userId", getFarmByUser);
 router.post("/", addFarmField);
 router.put("/select-crop", saveSelectedCrop);
 router.put("/:id", updateFieldById);
-
+router.put("/completed/:userId", getCompletedFields);
 // ARCHIVE FIELD
 router.delete("/:id", archiveField);
 
