@@ -264,7 +264,25 @@ export const completeTask = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+export const getCompletedFields = async (req, res) => {
+  try {
+    const userId = req.params.userId;
 
+    const fields = await Farm.find({
+      userId,
+      archived: true
+    }).sort({ completedAt: -1 });
+
+    res.json({
+      success: true,
+      completed: fields
+    });
+
+  } catch (err) {
+    console.error("getCompletedFields error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+};
 // =========================================================
 // 8️⃣ RETURN CACHED AI RECOMMENDATIONS FOR USER
 // =========================================================
