@@ -30,38 +30,25 @@ router.get("/", async (req, res) => {
 // ------------------------- CACHED AI -------------------------
 router.get("/cached-ai/:userId", getCachedAIRecommendations);
 
-// ------------------------- FIELD DETAILS (IMPORTANT ORDER!) -------------------------
-router.get("/:fieldId/details", getFieldDetails);   // <-- MUST COME BEFORE /:userId
+// ------------------------- FIELD DETAILS -------------------------
+router.get("/field/:fieldId/details", getFieldDetails);
+
+// ------------------------- COMPLETED (ARCHIVED) FIELDS -------------------------
+router.get("/completed/:userId", getCompletedFields);
 
 // ------------------------- FARM CRUD -------------------------
-router.get("/:userId", getFarmByUser);
+router.get("/user/:userId", getFarmByUser);
 router.post("/", addFarmField);
 router.put("/select-crop", saveSelectedCrop);
 router.put("/:id", updateFieldById);
-router.put("/completed/:userId", getCompletedFields);
-// ARCHIVE FIELD
 router.delete("/:id", archiveField);
 
-// MARK HARVESTED
+// ------------------------- MARK HARVEST (ARCHIVE) -------------------------
 router.patch("/:id/harvest", markFieldHarvested);
 
-// ------------------------- TASKS -------------------------
+// ------------------------- TASK ROUTES -------------------------
 router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
 router.patch("/tasks/:id/complete", completeTask);
-
-// COMPLETED FIELDS
-router.get("/completed/:userId", async (req, res) => {
-  try {
-    const farms = await Farm.find({
-      userId: req.params.userId,
-      status: "completed",
-    }).sort({ completedAt: -1 });
-
-    res.json({ success: true, completed: farms });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
 
 export default router;
