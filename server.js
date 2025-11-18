@@ -7,7 +7,6 @@ import fs from "fs";
 import path from "path";
 import cron from "node-cron";
 import axios from "axios";
-import jwt from "jsonwebtoken";
 
 import connectDB from "./config/db.js";
 import User from "./models/User.js";
@@ -37,6 +36,11 @@ connectDB();
 const app = express();
 
 // -----------------------------------------------------------
+// ⚠️ IMPORTANT FOR RENDER — ALLOW real IP THROUGH PROXY
+// -----------------------------------------------------------
+app.set("trust proxy", true);
+
+// -----------------------------------------------------------
 // 📁 Create uploads folder if missing
 // -----------------------------------------------------------
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -57,61 +61,46 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadDir));
 
 // -----------------------------------------------------------
-// 🔥 REAL ACTIVE FARMER TRACKING (Admin excluded)
+// 🔥 REAL ACTIVE USER TRACKING (WORKING VERSION)
 // -----------------------------------------------------------
-let activeFarmers = {}; // userId → timestamp
 
-app.use(async (req, res, next) => {
-  try {
-    const authHeader = req.headers["authorization"];
+let activeUsers = {}; // { ip: timestamp }
 
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const token = authHeader.split(" ")[1];
+// Track every incoming request
+app.use((req, res, next) => {
+  const ip =
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.connection.remoteAddress ||
+    req.socket?.remoteAddress ||
+    "unknown";
 
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // Fetch user role from database
-        const user = await User.findById(decoded.id);
-
-        // COUNT ONLY FARMERS
-        if (user && user.role === "farmer") {
-          activeFarmers[user._id.toString()] = Date.now();
-        }
-      } catch (err) {
-        // invalid or expired token → don't track
-      }
-    }
-  } catch (err) {
-    console.log("Tracking error:", err.message);
-  }
+  // Save timestamp when this IP makes a request
+  activeUsers[ip] = Date.now();
 
   next();
 });
 
-// Auto-clean inactive farmers every 30 sec
+// Auto-remove users inactive for > 1 minute
 setInterval(() => {
   const now = Date.now();
-  for (const userId in activeFarmers) {
-    if (now - activeFarmers[userId] > 60000) {
-      delete activeFarmers[userId]; // inactive > 60 sec
+  for (const ip of Object.keys(activeUsers)) {
+    if (now - activeUsers[ip] > 60000) {
+      delete activeUsers[ip];
     }
   }
 }, 30000);
 
-// -----------------------------------------------------------
-// 📊 Metrics Endpoint (Only FARMERS)
-// -----------------------------------------------------------
+// Metrics endpoint (used by dashboard)
 app.get("/metrics", (req, res) => {
   const now = Date.now();
 
-  const count = Object.values(activeFarmers).filter(
+  const count = Object.values(activeUsers).filter(
     (ts) => now - ts <= 60000
   ).length;
 
   res.json({
     success: true,
-    activeUsers: count, // ONLY FARMERS
+    activeUsers: count,
     timestamp: new Date(),
   });
 });
@@ -172,7 +161,6 @@ async function createDefaultAdmin() {
     await User.create({
       username: "admin",
       password: hashedPassword,
-      role: "admin",
     });
     console.log("✅ Default admin created: admin / admin");
   }
