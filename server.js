@@ -35,11 +35,15 @@ connectDB();
 
 const app = express();
 
-// ✅ Create uploads directory if missing
+// -----------------------------------------------------------
+// 📁 Create uploads folder if missing
+// -----------------------------------------------------------
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-// ✅ Middleware
+// -----------------------------------------------------------
+// 🔧 Middleware
+// -----------------------------------------------------------
 app.use(
   cors({
     origin: "*",
@@ -49,11 +53,60 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// ✅ Serve uploaded images publicly
 app.use("/uploads", express.static(uploadDir));
 
-// ✅ Mount API routes
+// -----------------------------------------------------------
+// 🔥 REAL ACTIVE USER TRACKING
+// -----------------------------------------------------------
+let activeUsers = {}; // IP → timestamp
+
+// Track every request
+app.use((req, res, next) => {
+  const ip =
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.connection.remoteAddress ||
+    "unknown";
+
+  // Update timestamp for this IP
+  activeUsers[ip] = Date.now();
+  next();
+});
+
+// Auto-remove inactive users every 30 sec
+setInterval(() => {
+  const now = Date.now();
+  for (const ip in activeUsers) {
+    if (now - activeUsers[ip] > 60000) {
+      delete activeUsers[ip]; // remove if inactive > 60 sec
+    }
+  }
+}, 30000);
+
+// -----------------------------------------------------------
+// 📊 Metrics Endpoint
+// -----------------------------------------------------------
+app.get("/metrics", (req, res) => {
+  const now = Date.now();
+
+  const count = Object.values(activeUsers).filter(
+    (ts) => now - ts <= 60000
+  ).length;
+
+  res.json({
+    success: true,
+    activeUsers: count,
+    timestamp: new Date(),
+  });
+});
+
+// -----------------------------------------------------------
+// ❤️ Health Check
+// -----------------------------------------------------------
+app.get("/health", (req, res) => res.json({ status: "ok" }));
+
+// -----------------------------------------------------------
+// 🚏 API Routes
+// -----------------------------------------------------------
 app.use("/api/activities", activityRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/tasks", taskRoutes);
@@ -71,19 +124,15 @@ app.use("/api/weather", weatherRoutes);
 app.use("/api/farm", farmRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/crops", cropRoutes);
-// ✅ Health check route
-app.get("/health", (req, res) => res.json({ status: "ok" }));
-app.get("/metrics", (req, res) => {
-  res.json({
-    success: true,
-    activeUsers: activeUsers.size,
-    timestamp: new Date(),
-  });
-});
-// ✅ Default home
+
+// -----------------------------------------------------------
+// 🏠 Default Route
+// -----------------------------------------------------------
 app.get("/", (req, res) => res.send("✅ SmartCrop backend is running!"));
 
-// 🌦️ Auto-update weather daily using Open-Meteo
+// -----------------------------------------------------------
+// 🌦 Daily Weather Auto-update (6AM)
+// -----------------------------------------------------------
 cron.schedule("0 6 * * *", async () => {
   try {
     console.log("🌤️ [CRON] Running daily weather update...");
@@ -96,7 +145,9 @@ cron.schedule("0 6 * * *", async () => {
   }
 });
 
-// ✅ Create default admin
+// -----------------------------------------------------------
+// 👤 Create Default Admin
+// -----------------------------------------------------------
 async function createDefaultAdmin() {
   const exists = await User.findOne({ username: "admin" });
   if (!exists) {
@@ -109,25 +160,11 @@ async function createDefaultAdmin() {
   }
 }
 createDefaultAdmin();
-let activeUsers = new Set();
 
-app.use((req, res, next) => {
-  const start = Date.now();
-
-  // Track unique users by IP
-  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  activeUsers.add(ip);
-
-  res.on("finish", () => {
-    const processingTime = Date.now() - start;
-    console.log(`⚡ ${req.method} ${req.url} - ${processingTime}ms`);
-  });
-
-  next();
-});
-
-// ✅ Start server
+// -----------------------------------------------------------
+// 🚀 Start Server
+// -----------------------------------------------------------
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(` Server running on http://0.0.0.0:${PORT}`);
-});
+app.listen(PORT, "0.0.0.0", () =>
+  console.log(` Server running on http://0.0.0.0:${PORT}`)
+);
