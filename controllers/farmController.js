@@ -10,10 +10,9 @@ import Task from "../models/Task.js";
 export const getFarmByUser = async (req, res) => {
   try {
     const farms = await Farm.find({
-      userId: req.params.userId,
-      archived: false
+      userId: req.params.userId
     })
-    .populate("userId", "username barangay")   // ✅ ADDED
+    .populate("userId", "username barangay")
     .sort({ createdAt: -1 });
 
     res.json({ success: true, farms });
