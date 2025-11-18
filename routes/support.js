@@ -1,4 +1,3 @@
-// backend/routes/support.js  
 import express from "express";
 import Support from "../models/Support.js";
 import Notification from "../models/Notification.js";
@@ -28,11 +27,9 @@ router.post("/", async (req, res) => {
 
     await Notification.create({
       title: "New Feedback Received",
-      message: `New feedback submitted by ${user?.username || "a user"} from ${
-        user?.barangay || "unknown barangay"
-      }.`,
+      message: `New feedback submitted by ${user?.username || "a user"} from ${user?.barangay || "unknown barangay"}.`,
       type: "user",
-      userId: userId, // ✅ correct field
+      userId,
     });
 
     res.json({ success: true, data: supportMsg });
@@ -43,7 +40,7 @@ router.post("/", async (req, res) => {
 });
 
 /* ============================================================
-   2️⃣ GET ALL FEEDBACK (admin dashboard)
+   2️⃣ GET ALL FEEDBACK (admin)
 ============================================================ */
 router.get("/", async (req, res) => {
   try {
@@ -78,9 +75,9 @@ router.put("/:id", async (req, res) => {
     if (updated) {
       await Notification.create({
         title: "Feedback Resolved",
-        message: `Feedback from user ${updated.userId} has been marked as resolved.`,
+        message: `Feedback from user ${user?.username} has been marked as resolved.`,
         type: "system",
-        userId: updated.userId, // ✅ FIXED
+        userId: updated.userId,
       });
     }
 
@@ -99,10 +96,7 @@ router.put("/:id/reply", async (req, res) => {
     const { replyText } = req.body;
 
     if (!replyText || replyText.trim() === "")
-      return res.status(400).json({
-        success: false,
-        message: "Reply cannot be empty",
-      });
+      return res.status(400).json({ success: false, message: "Reply cannot be empty" });
 
     const support = await Support.findById(req.params.id).populate(
       "userId",
@@ -121,7 +115,7 @@ router.put("/:id/reply", async (req, res) => {
       title: "Admin Replied",
       message: `Admin replied to your feedback: "${replyText}"`,
       type: "reply",
-      userId: support.userId?._id, // ✅ FIXED
+      userId: support.userId?._id,
     });
 
     res.json({
@@ -134,74 +128,40 @@ router.put("/:id/reply", async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
-// 📌 Get all messages for a user (farmer chat)
+
+/* ============================================================
+   5️⃣ GET FULL CHAT CONVERSATION (farmer)
+============================================================ */
 router.get("/chat/:userId", async (req, res) => {
   try {
-    const msgs = await Support.find({ userId: req.params.userId })
+    const messages = await Support.find({ userId: req.params.userId })
       .sort({ date: 1 });
 
-    const formatted = msgs.map(m => ({
-      sender: m.adminReply ? "admin" : "user",
-      text: m.adminReply ? m.adminReply : m.message,
-      date: m.date
-    }));
-
-    res.json({ success: true, messages: formatted });
-  } catch (err) {
-    res.status(500).json({ success: false });
-  }
-});
-// 5️⃣ Get all messages for one user (farmer)
-router.get("/user/:userId", async (req, res) => {
-  try {
-    const userId = req.params.userId;
-
-    const messages = await Support.find({ userId })
-      .sort({ date: 1 });
-
-    res.json({ success: true, data: messages });
-
-  } catch (err) {
-    console.error("❌ Fetch user messages error:", err);
-    res.status(500).json({ success: false });
-  }
-});
-// 5️⃣ Get full chat conversation for a user
-router.get("/chat/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const messages = await Support.find({ userId }).sort({ date: 1 });
-
-    // Convert DB format → Flutter chat format
     const formatted = [];
 
     messages.forEach(m => {
-      // Farmer message
-      formatted.add({
-        "sender": "user",
-        "text": m.message,
-        "date": m.date,
+      // Farmer message ALWAYS included
+      formatted.push({
+        sender: "user",
+        text: m.message,
+        date: m.date,
       });
 
-      // Admin reply (if exists)
-      if (m.adminReply != null && m.adminReply.trim() !== "") {
-        formatted.add({
-          "sender": "admin",
-          "text": m.adminReply,
-          "date": m.date,
+      // Admin message if exists
+      if (m.adminReply && m.adminReply.trim() !== "") {
+        formatted.push({
+          sender: "admin",
+          text: m.adminReply,
+          date: m.repliedAt || m.date,
         });
       }
     });
 
-    res.json({
-      success: true,
-      messages: formatted,
-    });
-
+    res.json({ success: true, messages: formatted });
   } catch (err) {
     console.error("❌ Chat fetch error:", err);
     res.status(500).json({ success: false });
   }
-})
+});
+
 export default router;
