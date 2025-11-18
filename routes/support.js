@@ -132,6 +132,7 @@ router.put("/:id/reply", async (req, res) => {
 /* ============================================================
    5️⃣ GET FULL CHAT CONVERSATION (farmer)
 ============================================================ */
+// 📌 Get full chat conversation for a user
 router.get("/chat/:userId", async (req, res) => {
   try {
     const messages = await Support.find({ userId: req.params.userId })
@@ -139,15 +140,15 @@ router.get("/chat/:userId", async (req, res) => {
 
     const formatted = [];
 
-    messages.forEach(m => {
-      // Farmer message ALWAYS included
+    messages.forEach((m) => {
+      // User message
       formatted.push({
         sender: "user",
         text: m.message,
         date: m.date,
       });
 
-      // Admin message if exists
+      // Admin reply
       if (m.adminReply && m.adminReply.trim() !== "") {
         formatted.push({
           sender: "admin",
@@ -159,7 +160,7 @@ router.get("/chat/:userId", async (req, res) => {
 
     res.json({ success: true, messages: formatted });
   } catch (err) {
-    console.error("❌ Chat fetch error:", err);
+    console.error("Chat fetch error:", err);
     res.status(500).json({ success: false });
   }
 });
