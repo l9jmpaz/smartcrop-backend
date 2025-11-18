@@ -27,7 +27,48 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+router.patch("/:id/active", async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        lastActive: new Date(),
+        status: "Active"
+      },
+      { new: true }
+    );
 
+    if (!user)
+      return res.status(404).json({ success: false, message: "user_not_found" });
+
+    // 🔥 UPDATE METRIC TRACKER TOO
+    activeFarmers[user._id.toString()] = Date.now();
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("update active error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+});
+router.patch("/:id/inactive", async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: "Inactive",
+        lastActive: null
+      },
+      { new: true }
+    );
+
+    if (!user) return res.status(404).json({ success: false, message: "user_not_found" });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("inactive error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+});
 // -------------------------------
 // 👤 GET ALL USERS
 // -------------------------------
@@ -109,46 +150,5 @@ router.delete("/:id", async (req, res) => {
 // -------------------------------
 // 🟢 MARK USER ACTIVE
 // -------------------------------
-router.patch("/:id/active", async (req, res) => {
-  try {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      {
-        lastActive: new Date(),
-        status: "Active"
-      },
-      { new: true }
-    );
 
-    if (!user)
-      return res.status(404).json({ success: false, message: "user_not_found" });
-
-    // 🔥 UPDATE METRIC TRACKER TOO
-    activeFarmers[user._id.toString()] = Date.now();
-
-    res.json({ success: true, user });
-  } catch (err) {
-    console.error("update active error:", err);
-    res.status(500).json({ success: false, message: "server_error" });
-  }
-});
-router.patch("/:id/inactive", async (req, res) => {
-  try {
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: "Inactive",
-        lastActive: null
-      },
-      { new: true }
-    );
-
-    if (!user) return res.status(404).json({ success: false, message: "user_not_found" });
-
-    res.json({ success: true, user });
-  } catch (err) {
-    console.error("inactive error:", err);
-    res.status(500).json({ success: false, message: "server_error" });
-  }
-});
 export default router;
