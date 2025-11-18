@@ -1,4 +1,7 @@
-// ✅ backend/server.js
+// -----------------------------------------------------------
+// 🚀 SmartCrop Server (With Real Active FARMER Tracking)
+// -----------------------------------------------------------
+
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -36,11 +39,6 @@ connectDB();
 const app = express();
 
 // -----------------------------------------------------------
-// ⚠️ IMPORTANT FOR RENDER — ALLOW real IP THROUGH PROXY
-// -----------------------------------------------------------
-app.set("trust proxy", true);
-
-// -----------------------------------------------------------
 // 📁 Create uploads folder if missing
 // -----------------------------------------------------------
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -53,54 +51,54 @@ app.use(
   cors({
     origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "userId", "userRole"],
   })
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadDir));
 
 // -----------------------------------------------------------
-// 🔥 REAL ACTIVE USER TRACKING (WORKING VERSION)
+// 🔥 REAL ACTIVE FARMER TRACKING
 // -----------------------------------------------------------
 
-let activeUsers = {}; // { ip: timestamp }
+// userId → last activity timestamp
+let activeFarmers = {};
 
-// Track every incoming request
+// Middleware to track only FARMERS
 app.use((req, res, next) => {
-  const ip =
-    req.headers["x-forwarded-for"]?.split(",")[0] ||
-    req.connection.remoteAddress ||
-    req.socket?.remoteAddress ||
-    "unknown";
+  const userId = req.headers["userid"];
+  const role = req.headers["userrole"];
 
-  // Save timestamp when this IP makes a request
-  activeUsers[ip] = Date.now();
+  if (userId && role === "farmer") {
+    activeFarmers[userId] = Date.now();
+  }
 
   next();
 });
 
-// Auto-remove users inactive for > 1 minute
+// Auto-remove inactive farmers every 30s
 setInterval(() => {
   const now = Date.now();
-  for (const ip of Object.keys(activeUsers)) {
-    if (now - activeUsers[ip] > 60000) {
-      delete activeUsers[ip];
+  for (const uid of Object.keys(activeFarmers)) {
+    if (now - activeFarmers[uid] > 60000) {
+      delete activeFarmers[uid];
     }
   }
 }, 30000);
 
-// Metrics endpoint (used by dashboard)
+// Metrics endpoint (only farmers)
 app.get("/metrics", (req, res) => {
   const now = Date.now();
 
-  const count = Object.values(activeUsers).filter(
+  const activeCount = Object.values(activeFarmers).filter(
     (ts) => now - ts <= 60000
   ).length;
 
   res.json({
     success: true,
-    activeUsers: count,
+    activeFarmers: activeCount,
     timestamp: new Date(),
   });
 });
