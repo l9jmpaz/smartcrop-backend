@@ -36,39 +36,37 @@ router.get("/", async (req, res) => {
 ========================================================== */
 router.get("/all/yields", async (req, res) => {
   try {
-    const allFarms = await Farm.find({})
+    const farms = await Farm.find({})
       .populate("userId", "username")
       .lean();
 
     const allYields = [];
 
-    allFarms.forEach((farm) => {
-      (farm.tasks || []).forEach((task) => {
-        if (
-          task.type?.toLowerCase().includes("harvest") &&
-          task.completed &&
-          Number(task.kilos) > 0
-        ) {
-          allYields.push({
-            farmerId: farm.userId?._id,
-            farmer: farm.userId?.username || "Unknown Farmer",
-            fieldId: farm._id,
-            fieldName: farm.fieldName,
-            crop: task.crop || farm.selectedCrop || "Unknown Crop",
-            yield: task.kilos,
-            date: task.date || farm.completedAt || new Date(),
-          });
-        }
-      });
+    farms.forEach((farm) => {
+      const harvestTask = (farm.tasks || []).find(
+        (t) =>
+          t.type?.toLowerCase().includes("harvest") &&
+          t.completed &&
+          t.kilos > 0
+      );
+
+      if (harvestTask) {
+        allYields.push({
+          farmerId: farm.userId?._id,
+          farmer: farm.userId?.username || "Unknown",
+          fieldId: farm._id,
+          fieldName: farm.fieldName,
+          crop: harvestTask.crop || farm.selectedCrop || "Unknown Crop",
+          yield: harvestTask.kilos,
+          date: harvestTask.date || farm.completedAt || new Date(),
+        });
+      }
     });
 
     return res.json({ success: true, data: allYields });
   } catch (err) {
     console.error("❌ ALL YIELDS ERROR:", err);
-    return res.status(500).json({
-      success: false,
-      message: "Server error while fetching global yield data",
-    });
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
