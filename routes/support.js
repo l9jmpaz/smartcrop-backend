@@ -1,4 +1,4 @@
-// backend/routes/support.js
+// backend/routes/support.js  
 import express from "express";
 import Support from "../models/Support.js";
 import Notification from "../models/Notification.js";
@@ -12,6 +12,7 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   try {
     const { userId, message } = req.body;
+
     if (!userId || !message)
       return res.status(400).json({ success: false, message: "Missing fields" });
 
@@ -31,6 +32,7 @@ router.post("/", async (req, res) => {
         user?.barangay || "unknown barangay"
       }.`,
       type: "user",
+      userId: userId, // ✅ correct field
     });
 
     res.json({ success: true, data: supportMsg });
@@ -78,27 +80,29 @@ router.put("/:id", async (req, res) => {
         title: "Feedback Resolved",
         message: `Feedback from user ${updated.userId} has been marked as resolved.`,
         type: "system",
+        userId: updated.userId, // ✅ FIXED
       });
     }
 
     res.json({ success: true, data: updated });
   } catch (err) {
-    console.error("❌ Error updating support status:", err);
+    console.error("❌ Error updating support:", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
 
 /* ============================================================
-   4️⃣ ADMIN REPLY TO FEEDBACK  (NEW!)
+   4️⃣ ADMIN REPLY TO FEEDBACK
 ============================================================ */
 router.put("/:id/reply", async (req, res) => {
   try {
     const { replyText } = req.body;
 
     if (!replyText || replyText.trim() === "")
-      return res
-        .status(400)
-        .json({ success: false, message: "Reply cannot be empty" });
+      return res.status(400).json({
+        success: false,
+        message: "Reply cannot be empty",
+      });
 
     const support = await Support.findById(req.params.id).populate(
       "userId",
@@ -110,17 +114,21 @@ router.put("/:id/reply", async (req, res) => {
 
     support.adminReply = replyText;
     support.status = "resolved";
+    support.repliedAt = new Date();
     await support.save();
 
-    // Notify farmer of admin reply
     await Notification.create({
       title: "Admin Replied",
       message: `Admin replied to your feedback: "${replyText}"`,
       type: "reply",
-      user: support.userId?._id || null,
+      userId: support.userId?._id, // ✅ FIXED
     });
 
-    res.json({ success: true, message: "Reply sent", data: support });
+    res.json({
+      success: true,
+      message: "Reply sent successfully!",
+      data: support,
+    });
   } catch (err) {
     console.error("❌ Reply error:", err);
     res.status(500).json({ success: false, message: err.message });
