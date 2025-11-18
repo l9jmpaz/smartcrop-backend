@@ -132,5 +132,23 @@ router.patch("/:id/active", async (req, res) => {
     res.status(500).json({ success: false, message: "server_error" });
   }
 });
+router.patch("/:id/inactive", async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: "Inactive",
+        lastActive: null
+      },
+      { new: true }
+    );
 
+    if (!user) return res.status(404).json({ success: false, message: "user_not_found" });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("inactive error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+});
 export default router;
