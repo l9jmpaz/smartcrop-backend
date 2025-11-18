@@ -89,18 +89,22 @@ setInterval(() => {
 }, 30000);
 
 // Metrics endpoint (only farmers)
-app.get("/metrics", (req, res) => {
-  const now = Date.now();
+app.get("/metrics", async (req, res) => {
+  try {
+    const activeCount = await User.countDocuments({ 
+      role: "farmer",
+      isActive: true 
+    });
 
-  const activeCount = Object.values(activeFarmers).filter(
-    (ts) => now - ts <= 60000
-  ).length;
-
-  res.json({
-    success: true,
-    activeFarmers: activeCount,
-    timestamp: new Date(),
-  });
+    res.json({
+      success: true,
+      activeUsers: activeCount,
+      timestamp: new Date(),
+    });
+  } catch (err) {
+    console.error("Metrics error:", err);
+    res.status(500).json({ success: false, activeUsers: 0 });
+  }
 });
 
 // -----------------------------------------------------------
