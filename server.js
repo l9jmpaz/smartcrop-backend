@@ -168,7 +168,15 @@ async function createDefaultAdmin() {
   }
 }
 createDefaultAdmin();
-
+// CLEAN EXPIRED USERS EVERY 30 SECONDS
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, lastActive] of Object.entries(activeFarmers)) {
+    if (now - lastActive > 60000) {
+      delete activeFarmers[userId];  // Auto remove expired user
+    }
+  }
+}, 30000);
 // -----------------------------------------------------------
 // 🚀 Start Server
 // -----------------------------------------------------------
