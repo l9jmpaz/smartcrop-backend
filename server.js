@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import cron from "node-cron";
 import axios from "axios";
+import jwt from "jsonwebtoken";
 
 import connectDB from "./config/db.js";
 import User from "./models/User.js";
@@ -56,45 +57,61 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadDir));
 
 // -----------------------------------------------------------
-// 🔥 REAL ACTIVE USER TRACKING
+// 🔥 REAL ACTIVE FARMER TRACKING (Admin excluded)
 // -----------------------------------------------------------
-let activeUsers = {}; // IP → timestamp
+let activeFarmers = {}; // userId → timestamp
 
-// Track every request
-app.use((req, res, next) => {
-  const ip =
-    req.headers["x-forwarded-for"]?.split(",")[0] ||
-    req.connection.remoteAddress ||
-    "unknown";
+app.use(async (req, res, next) => {
+  try {
+    const authHeader = req.headers["authorization"];
 
-  // Update timestamp for this IP
-  activeUsers[ip] = Date.now();
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Fetch user role from database
+        const user = await User.findById(decoded.id);
+
+        // COUNT ONLY FARMERS
+        if (user && user.role === "farmer") {
+          activeFarmers[user._id.toString()] = Date.now();
+        }
+      } catch (err) {
+        // invalid or expired token → don't track
+      }
+    }
+  } catch (err) {
+    console.log("Tracking error:", err.message);
+  }
+
   next();
 });
 
-// Auto-remove inactive users every 30 sec
+// Auto-clean inactive farmers every 30 sec
 setInterval(() => {
   const now = Date.now();
-  for (const ip in activeUsers) {
-    if (now - activeUsers[ip] > 60000) {
-      delete activeUsers[ip]; // remove if inactive > 60 sec
+  for (const userId in activeFarmers) {
+    if (now - activeFarmers[userId] > 60000) {
+      delete activeFarmers[userId]; // inactive > 60 sec
     }
   }
 }, 30000);
 
 // -----------------------------------------------------------
-// 📊 Metrics Endpoint
+// 📊 Metrics Endpoint (Only FARMERS)
 // -----------------------------------------------------------
 app.get("/metrics", (req, res) => {
   const now = Date.now();
 
-  const count = Object.values(activeUsers).filter(
+  const count = Object.values(activeFarmers).filter(
     (ts) => now - ts <= 60000
   ).length;
 
   res.json({
     success: true,
-    activeUsers: count,
+    activeUsers: count, // ONLY FARMERS
     timestamp: new Date(),
   });
 });
@@ -155,6 +172,7 @@ async function createDefaultAdmin() {
     await User.create({
       username: "admin",
       password: hashedPassword,
+      role: "admin",
     });
     console.log("✅ Default admin created: admin / admin");
   }
