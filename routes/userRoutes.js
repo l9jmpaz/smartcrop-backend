@@ -22,5 +22,24 @@ router.put("/update/:id", updateUser);
 
 // ✅ Upload profile picture
 router.post("/upload/:id", upload.single("image"), uploadProfilePicture);
+router.patch("/:id/active", async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        lastActive: new Date(),
+        status: "Active"
+      },
+      { new: true }
+    );
+
+    if (!user) return res.status(404).json({ success: false, message: "user_not_found" });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("update active error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+});
 
 export default router;

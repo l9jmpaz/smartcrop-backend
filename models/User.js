@@ -9,7 +9,8 @@ const UserSchema = new mongoose.Schema({
   barangay: {type: String, required: true },
   profilePicture: {type: String, default: ""},
   role: { type: String, default: "user" },
-  status: { type: String, default: "Active" },
+  lastActive: { type: Date, default: null },
+status: { type: String, default: "Inactive" },
 
   // 🌾 Farm setup details
   farm: {
