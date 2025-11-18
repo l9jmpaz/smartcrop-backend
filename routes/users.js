@@ -1,30 +1,35 @@
-// ✅ User Routes (CRUD + Profile Upload)
+// ===========================
+//  🚀 User Routes (FINAL FIX)
+// ===========================
 import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import User from "../models/User.js";
-import { uploadProfilePicture } from "../controllers/userController.js";
+import { uploadProfilePicture, updateUser } from "../controllers/userController.js";
 
 const router = express.Router();
 
-// 🧱 Setup Multer for File Uploads
+// -------------------------------
+// 🔧 Multer Storage
+// -------------------------------
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(process.cwd(), "uploads");
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+    const uploadDir = path.join(process.cwd(), "uploads/profile_pictures");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const uniqueName =
-      Date.now() + "-" + Math.round(Math.random() * 1e9) + path.extname(file.originalname);
-    cb(null, uniqueName);
+    const ext = file.originalname.split(".").pop();
+    cb(null, `${req.params.id}_${Date.now()}.${ext}`);
   },
 });
 
 const upload = multer({ storage });
 
-// ✅ Get all users
+// -------------------------------
+// 👤 GET ALL USERS
+// -------------------------------
 router.get("/", async (req, res) => {
   try {
     const users = await User.find().select("-password");
@@ -35,12 +40,15 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ Get single user
+// -------------------------------
+// 👤 GET SINGLE USER
+// -------------------------------
 router.get("/:id", async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-password");
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
+
     res.json({ success: true, data: user });
   } catch (err) {
     console.error("❌ Error getting user:", err);
@@ -48,17 +56,12 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// ✅ Add new user (for Admin)
+// -------------------------------
+// ➕ ADD NEW USER
+// -------------------------------
 router.post("/", async (req, res) => {
   try {
     const { username, phone, barangay, status } = req.body;
-
-    if (!username || !barangay) {
-      return res.status(400).json({
-        success: false,
-        message: "Username and barangay are required",
-      });
-    }
 
     const newUser = new User({
       username,
@@ -75,34 +78,23 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ✅ Update user info
-router.put("/:id", async (req, res) => {
-  try {
-    const { username, phone, barangay, status } = req.body;
+// -------------------------------
+// ✏ UPDATE USER INFO
+// -------------------------------
+router.put("/:id", updateUser);
 
-    const updated = await User.findByIdAndUpdate(
-      req.params.id,
-      { username, phone, barangay, status },
-      { new: true }
-    ).select("-password");
-
-    if (!updated)
-      return res.status(404).json({ success: false, message: "User not found" });
-
-    res.json({ success: true, data: updated });
-  } catch (err) {
-    console.error("❌ Error updating user:", err);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-});
-
-// ✅ Profile picture upload route
+// -------------------------------
+// 🖼 UPLOAD PROFILE PICTURE
+// -------------------------------
 router.post("/upload/:id", upload.single("image"), uploadProfilePicture);
 
-// ✅ Delete user
+// -------------------------------
+// 🗑 DELETE USER
+// -------------------------------
 router.delete("/:id", async (req, res) => {
   try {
     const deleted = await User.findByIdAndDelete(req.params.id);
+
     if (!deleted)
       return res.status(404).json({ success: false, message: "User not found" });
 
@@ -110,6 +102,27 @@ router.delete("/:id", async (req, res) => {
   } catch (err) {
     console.error("❌ Error deleting user:", err);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// -------------------------------
+// 🟢 MARK USER ACTIVE
+// -------------------------------
+router.patch("/:id/active", async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { status: "Active", lastActive: new Date() },
+      { new: true }
+    );
+
+    if (!user)
+      return res.status(404).json({ success: false, message: "user_not_found" });
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("update active error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
   }
 });
 
