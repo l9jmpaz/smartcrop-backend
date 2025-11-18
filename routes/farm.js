@@ -42,19 +42,20 @@ router.get("/all/yields", async (req, res) => {
     const allYields = [];
 
     allFarms.forEach((farm) => {
-      farm.fields?.forEach((field) => {
-        const harvestTask = field.tasks?.find((t) =>
-          t.type?.toLowerCase().includes("harvest")
-        );
-
-        if (harvestTask && harvestTask.kilos) {
+      (farm.tasks || []).forEach((task) => {
+        if (
+          task.type?.toLowerCase().includes("harvest") &&
+          task.completed &&
+          task.kilos > 0
+        ) {
           allYields.push({
             farmerId: farm.userId?._id,
             farmer: farm.userId?.username || "Unknown Farmer",
-            fieldName: field.fieldName,
-            crop: field.selectedCrop,
-            yield: harvestTask.kilos,
-            date: harvestTask.date || field.completedAt || new Date(),
+            fieldId: farm._id,
+            fieldName: farm.fieldName,
+            crop: task.crop || farm.selectedCrop || "Unknown Crop",
+            yield: task.kilos,
+            date: task.date || farm.completedAt || new Date(),
           });
         }
       });
