@@ -25,7 +25,7 @@ router.get("/sync", async (req, res) => {
       date: new Date(),
       temperature: data.main.temp,
       humidity: data.main.humidity,
-      rainfall: data.rain ? data.rain["1h"] || 0 : 0,
+      rainfall: data.rain?.["1h"] || data.rain?.["3h"] || 0,
     });
 
     await newWeather.save();
