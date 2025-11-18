@@ -134,5 +134,21 @@ router.put("/:id/reply", async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 });
+// 📌 Get all messages for a user (farmer chat)
+router.get("/chat/:userId", async (req, res) => {
+  try {
+    const msgs = await Support.find({ userId: req.params.userId })
+      .sort({ date: 1 });
 
+    const formatted = msgs.map(m => ({
+      sender: m.adminReply ? "admin" : "user",
+      text: m.adminReply ? m.adminReply : m.message,
+      date: m.date
+    }));
+
+    res.json({ success: true, messages: formatted });
+  } catch (err) {
+    res.status(500).json({ success: false });
+  }
+});
 export default router;
