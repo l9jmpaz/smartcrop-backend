@@ -32,10 +32,10 @@ import aiRoutes from "./routes/ai.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import otpRoutes from "./routes/otp.js";
 import cropRoutes from "./routes/cropRoutes.js";
-
+import { activeFarmers } from "./utils/activeFarmers.js";
 dotenv.config();
 connectDB();
-export const activeFarmers = {};
+
 const app = express();
 
 // -----------------------------------------------------------

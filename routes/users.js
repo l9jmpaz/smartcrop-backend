@@ -7,8 +7,7 @@ import path from "path";
 import fs from "fs";
 import User from "../models/User.js";
 import { uploadProfilePicture, updateUser } from "../controllers/userController.js";
-import { activeFarmers } from "../server.js";
-
+import { activeFarmers } from "../utils/activeFarmers.js";
 const router = express.Router();
 
 // -------------------------------
