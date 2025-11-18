@@ -151,4 +151,19 @@ router.get("/chat/:userId", async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
+// 5️⃣ Get all messages for one user (farmer)
+router.get("/user/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    const messages = await Support.find({ userId })
+      .sort({ date: 1 });
+
+    res.json({ success: true, data: messages });
+
+  } catch (err) {
+    console.error("❌ Fetch user messages error:", err);
+    res.status(500).json({ success: false });
+  }
+});
 export default router;
