@@ -166,4 +166,42 @@ router.get("/user/:userId", async (req, res) => {
     res.status(500).json({ success: false });
   }
 });
+// 5️⃣ Get full chat conversation for a user
+router.get("/chat/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const messages = await Support.find({ userId }).sort({ date: 1 });
+
+    // Convert DB format → Flutter chat format
+    const formatted = [];
+
+    messages.forEach(m => {
+      // Farmer message
+      formatted.add({
+        "sender": "user",
+        "text": m.message,
+        "date": m.date,
+      });
+
+      // Admin reply (if exists)
+      if (m.adminReply != null && m.adminReply.trim() !== "") {
+        formatted.add({
+          "sender": "admin",
+          "text": m.adminReply,
+          "date": m.date,
+        });
+      }
+    });
+
+    res.json({
+      success: true,
+      messages: formatted,
+    });
+
+  } catch (err) {
+    console.error("❌ Chat fetch error:", err);
+    res.status(500).json({ success: false });
+  }
+})
 export default router;
