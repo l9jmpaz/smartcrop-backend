@@ -91,21 +91,21 @@ setInterval(() => {
 // Metrics endpoint (only farmers)
 app.get("/metrics", async (req, res) => {
   try {
-    const activeCount = await User.countDocuments({ 
-      role: "farmer",
-      isActive: true 
+    const activeFarmers = await User.countDocuments({ 
+      status: "Active",
+      role: "user"   // ensure NOT admin
     });
 
     res.json({
       success: true,
-      activeUsers: activeCount,
+      activeFarmers,
       timestamp: new Date(),
     });
   } catch (err) {
-    console.error("Metrics error:", err);
-    res.status(500).json({ success: false, activeUsers: 0 });
+    res.status(500).json({ success: false });
   }
 });
+
 
 // -----------------------------------------------------------
 // ❤️ Health Check

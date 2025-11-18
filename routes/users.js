@@ -64,7 +64,7 @@ router.post("/", async (req, res) => {
       username,
       phone,
       barangay,
-      status: status || "Active",
+      status: status || "Inactive",
     });
 
     await newUser.save();
