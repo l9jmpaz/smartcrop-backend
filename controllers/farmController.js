@@ -288,6 +288,47 @@ export const getCompletedFields = async (req, res) => {
     res.status(500).json({ success: false, message: "server_error" });
   }
 };
+export const getYieldTrendByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // find completed fields
+    const completed = await Farm.find({
+      userId,
+      archived: true,
+    }).sort({ completedAt: 1 });
+
+    const trend = [];
+
+    completed.forEach(field => {
+      const harvestTask = field.tasks.find(
+        t => t.type.toLowerCase().includes("harvest") && t.completed
+      );
+
+      if (harvestTask) {
+        // Always use a valid date
+        const harvestedDate =
+          harvestTask.date ||
+          field.harvestDate ||
+          field.completedAt ||
+          new Date();
+
+        trend.push({
+          fieldName: field.fieldName,
+          crop: harvestTask.crop || field.selectedCrop || "Unknown crop",
+          kilos: harvestTask.kilos ?? 0,
+          date: harvestedDate, // fixed
+        });
+      }
+    });
+
+    res.json({ success: true, trend });
+  } catch (err) {
+    console.error("❌ getYieldTrendByUser Error:", err);
+    res.status(500).json({ success: false, message: "server_error" });
+  }
+};
+
 // =========================================================
 // 8️⃣ RETURN CACHED AI RECOMMENDATIONS FOR USER
 // =========================================================

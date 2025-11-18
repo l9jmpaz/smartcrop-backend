@@ -19,7 +19,7 @@ import {
 const router = express.Router();
 
 /* ==========================================================
-   ADMIN: GET ALL FARMS (Populated with username + barangay)
+   ADMIN: GET ALL FARMS
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
@@ -31,25 +31,30 @@ router.get("/", async (req, res) => {
 });
 
 /* ==========================================================
-   CACHED AI RECOMMENDATIONS
+   CACHED AI
 ========================================================== */
 router.get("/cached-ai/:userId", getCachedAIRecommendations);
 
 /* ==========================================================
-   COMPLETED / ARCHIVED FIELDS (IMPORTANT ORDER)
+   COMPLETED FIELDS
 ========================================================== */
 router.get("/completed/:userId", getCompletedFields);
 
 /* ==========================================================
-   FIELD DETAILS (IMPORTANT ORDER)
+   FIELD DETAILS
 ========================================================== */
 router.get("/:fieldId/details", getFieldDetails);
 
 /* ==========================================================
-   FARM DATA FOR USER (ACTIVE FIELDS)
+   YIELD TREND (MUST BE ABOVE /:userId)
+========================================================== */
+router.get("/:userId/yield", getYieldTrendByUser);
+
+/* ==========================================================
+   USER FARMS (ACTIVE FIELDS)
 ========================================================== */
 router.get("/:userId", getFarmByUser);
-router.get("/:userId/yield", getYieldTrendByUser);
+
 /* ==========================================================
    FARM CRUD
 ========================================================== */
