@@ -13,6 +13,7 @@ import {
   saveSelectedCrop,
   getCachedAIRecommendations,
   getFieldDetails,
+  getYieldTrendByUser,
 } from "../controllers/farmController.js";
 
 const router = express.Router();
@@ -48,7 +49,7 @@ router.get("/:fieldId/details", getFieldDetails);
    FARM DATA FOR USER (ACTIVE FIELDS)
 ========================================================== */
 router.get("/:userId", getFarmByUser);
-
+router.get("/:userId/yield", getYieldTrendByUser);
 /* ==========================================================
    FARM CRUD
 ========================================================== */
