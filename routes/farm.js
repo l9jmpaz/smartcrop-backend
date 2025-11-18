@@ -19,7 +19,7 @@ import {
 const router = express.Router();
 
 /* ==========================================================
-   ✅ 1. ADMIN: GET ALL FARMS
+   1. ADMIN GET ALL FARMS
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
@@ -31,7 +31,7 @@ router.get("/", async (req, res) => {
 });
 
 /* ==========================================================
-   ✅ 2. GET ALL YIELDS (GLOBAL) — MUST BE FIRST BEFORE /:userId
+   2. GLOBAL YIELDS (must be FIRST)
 ========================================================== */
 router.get("/all/yields", async (req, res) => {
   try {
@@ -41,86 +41,84 @@ router.get("/all/yields", async (req, res) => {
 
     const allYields = [];
 
-    allFarms.forEach((farm) => {
-      (farm.tasks || []).forEach((task) => {
-        if (
-          task.type?.toLowerCase().includes("harvest") &&
-          task.completed &&
-          task.kilos > 0
-        ) {
+    // Loop through fields array (correct)
+    allFarms.forEach(farm => {
+      (farm.fields || []).forEach(field => {
+        const harvestTask = field.tasks?.find(
+          t =>
+            t.type?.toLowerCase().includes("harvest") &&
+            t.completed &&
+            t.kilos > 0
+        );
+
+        if (harvestTask) {
           allYields.push({
             farmerId: farm.userId?._id,
             farmer: farm.userId?.username || "Unknown Farmer",
-            fieldId: farm._id,
-            fieldName: farm.fieldName,
-            crop: task.crop || farm.selectedCrop || "Unknown Crop",
-            yield: task.kilos,
-            date: task.date || farm.completedAt || new Date(),
+            fieldId: field._id,
+            fieldName: field.fieldName,
+            crop: harvestTask.crop || field.selectedCrop,
+            yield: harvestTask.kilos,
+            date: harvestTask.date || field.completedAt || new Date(),
           });
         }
       });
     });
 
-    return res.json({
-      success: true,
-      data: allYields,
-    });
+    return res.json({ success: true, data: allYields });
   } catch (err) {
     console.error("❌ Error loading all yields:", err);
-    res.status(500).json({
-      success: false,
-      message: "Server error while fetching yield data",
-    });
+    res.status(500).json({ success: false, message: "Server error while fetching yield data" });
   }
 });
 
 /* ==========================================================
-   3. CACHED AI
+   3. TASK ROUTES — MUST BE BEFORE ANY :userId ROUTE
+========================================================== */
+router.get("/tasks/:userId", getTasksByUser);
+router.post("/tasks", addTask);
+router.patch("/tasks/:id/complete", completeTask);
+
+/* ==========================================================
+   4. CACHED AI
 ========================================================== */
 router.get("/cached-ai/:userId", getCachedAIRecommendations);
 
 /* ==========================================================
-   4. COMPLETED FIELDS
+   5. COMPLETED FIELDS
 ========================================================== */
 router.get("/completed/:userId", getCompletedFields);
 
 /* ==========================================================
-   5. FIELD DETAILS — MUST BE BEFORE /:userId
+   6. FIELD DETAILS
 ========================================================== */
 router.get("/field/:fieldId/details", getFieldDetails);
 
 /* ==========================================================
-   6. USER YIELD TREND (SPECIFIC USER)
+   7. USER YIELD TREND
 ========================================================== */
 router.get("/:userId/yield", getYieldTrendByUser);
 
 /* ==========================================================
-   7. USER FARMS
+   8. USER FARMS
 ========================================================== */
 router.get("/:userId", getFarmByUser);
 
 /* ==========================================================
-   8. FARM CRUD 
+   9. FARM CRUD
 ========================================================== */
 router.post("/", addFarmField);
 router.put("/select-crop", saveSelectedCrop);
 router.put("/:id", updateFieldById);
 
 /* ==========================================================
-   9. DELETE / ARCHIVE FIELD
+   10. DELETE / ARCHIVE FIELD
 ========================================================== */
 router.delete("/:id", archiveField);
 
 /* ==========================================================
-   🔟 MARK FIELD HARVESTED
+   11. MARK FIELD HARVESTED
 ========================================================== */
 router.patch("/:id/harvest", markFieldHarvested);
-
-/* ==========================================================
-   1️⃣1️⃣ TASKS
-========================================================== */
-router.get("/tasks/:userId", getTasksByUser);
-router.post("/tasks", addTask);
-router.patch("/tasks/:id/complete", completeTask);
 
 export default router;
