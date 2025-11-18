@@ -1,5 +1,5 @@
 // -----------------------------------------------------------
-// 🚀 SmartCrop Server (With Real Active FARMER Tracking)
+// 🚀 SmartCrop Backend (Clean + Active User System)
 // -----------------------------------------------------------
 
 import express from "express";
@@ -14,7 +14,7 @@ import axios from "axios";
 import connectDB from "./config/db.js";
 import User from "./models/User.js";
 
-// 🧩 Import all routes
+// Routes
 import taskRoutes from "./routes/taskRoutes.js";
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
@@ -32,7 +32,7 @@ import aiRoutes from "./routes/ai.js";
 import activityRoutes from "./routes/activityRoutes.js";
 import otpRoutes from "./routes/otp.js";
 import cropRoutes from "./routes/cropRoutes.js";
-import { activeFarmers } from "./utils/activeFarmers.js";
+
 dotenv.config();
 connectDB();
 
@@ -42,7 +42,7 @@ const app = express();
 // 📁 Create uploads folder if missing
 // -----------------------------------------------------------
 const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 // -----------------------------------------------------------
 // 🔧 Middleware
@@ -50,7 +50,7 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 app.use(
   cors({
     origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization", "userId", "userRole"],
   })
 );
@@ -60,52 +60,33 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(uploadDir));
 
 // -----------------------------------------------------------
-// 🔥 REAL ACTIVE FARMER TRACKING
+// 📊 REAL ACTIVE FARMER METRIC (DB-BASED)
 // -----------------------------------------------------------
+//
+// Flutter calls:
+//   PATCH /api/users/:id/active → sets status = Active
+//   PATCH /api/users/:id/inactive → sets status = Inactive
+//
+// Dashboard reads from MongoDB directly.
+//
 
-// userId → last activity timestamp
-let activeFarmers = {};
-
-// Middleware to track only FARMERS
-app.use((req, res, next) => {
-  const userId = req.headers["userid"];
-  const role = req.headers["userrole"];
-
-  if (userId && role === "farmer") {
-    activeFarmers[userId] = Date.now();
-  }
-
-  next();
-});
-
-// Auto-remove inactive farmers every 30s
-setInterval(() => {
-  const now = Date.now();
-  for (const uid of Object.keys(activeFarmers)) {
-    if (now - activeFarmers[uid] > 60000) {
-      delete activeFarmers[uid];
-    }
-  }
-}, 30000);
-
-// Metrics endpoint (only farmers)
 app.get("/metrics", async (req, res) => {
   try {
-    const activeFarmers = await User.countDocuments({ 
+    const activeCount = await User.countDocuments({
       status: "Active",
-      role: "user"   // ensure NOT admin
+      role: "user", // farmers only
     });
 
     res.json({
       success: true,
-      activeFarmers,
+      activeFarmers: activeCount,
       timestamp: new Date(),
     });
   } catch (err) {
+    console.error("metrics error:", err);
     res.status(500).json({ success: false });
   }
 });
-
 
 // -----------------------------------------------------------
 // ❤️ Health Check
@@ -136,7 +117,9 @@ app.use("/api/crops", cropRoutes);
 // -----------------------------------------------------------
 // 🏠 Default Route
 // -----------------------------------------------------------
-app.get("/", (req, res) => res.send("✅ SmartCrop backend is running!"));
+app.get("/", (req, res) => {
+  res.send("✅ SmartCrop backend is running!");
+});
 
 // -----------------------------------------------------------
 // 🌦 Daily Weather Auto-update (6AM)
@@ -149,7 +132,10 @@ cron.schedule("0 6 * * *", async () => {
     );
     console.log("✅ [CRON] Weather updated successfully!");
   } catch (err) {
-    console.error("❌ [CRON] Failed to auto-update weather:", err.message);
+    console.error(
+      "❌ [CRON] Failed to auto-update weather:",
+      err.message
+    );
   }
 });
 
@@ -163,24 +149,17 @@ async function createDefaultAdmin() {
     await User.create({
       username: "admin",
       password: hashedPassword,
+      role: "admin",
     });
     console.log("✅ Default admin created: admin / admin");
   }
 }
 createDefaultAdmin();
-// CLEAN EXPIRED USERS EVERY 30 SECONDS
-setInterval(() => {
-  const now = Date.now();
-  for (const [userId, lastActive] of Object.entries(activeFarmers)) {
-    if (now - lastActive > 60000) {
-      delete activeFarmers[userId];  // Auto remove expired user
-    }
-  }
-}, 30000);
+
 // -----------------------------------------------------------
 // 🚀 Start Server
 // -----------------------------------------------------------
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, "0.0.0.0", () =>
-  console.log(` Server running on http://0.0.0.0:${PORT}`)
+  console.log(`Server running on http://0.0.0.0:${PORT}`)
 );
