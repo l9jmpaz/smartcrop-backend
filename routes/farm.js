@@ -20,7 +20,7 @@ import {
 const router = express.Router();
 
 /* ==========================================================
-   ✅ 1. ADMIN — GET ALL FARMS
+   1. ADMIN — GET ALL FARMS
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
@@ -32,7 +32,7 @@ router.get("/", async (req, res) => {
 });
 
 /* ==========================================================
-   ✅ 2. GLOBAL — GET ALL YIELDS (NO USER ID)
+   2. GLOBAL — GET ALL YIELDS
 ========================================================== */
 router.get("/all/yields", async (req, res) => {
   try {
@@ -73,49 +73,57 @@ router.get("/all/yields", async (req, res) => {
 });
 
 /* ==========================================================
-   ✅ 3. CACHED AI
+   3. CACHED AI
 ========================================================== */
 router.get("/cached-ai/:userId", getCachedAIRecommendations);
 
 /* ==========================================================
-   ✅ 4. COMPLETED FIELDS
+   4. COMPLETED FIELDS
 ========================================================== */
 router.get("/completed/:userId", getCompletedFields);
 
 /* ==========================================================
-   ✅ 5. FIELD DETAILS — MUST BE BEFORE /:userId
+   5. FIELD DETAILS
 ========================================================== */
 router.get("/field/:fieldId/details", getFieldDetails);
 
 /* ==========================================================
-   ✅ 6. USER YIELD TREND (SPECIFIC USER)
+   6. YIELD TREND FOR SPECIFIC USER
 ========================================================== */
-router.get("/:userId/yield", getYieldTrendByUser);
+router.get("/user/:userId/yield", getYieldTrendByUser);
 
 /* ==========================================================
-   ✅ 7. USER FARMS (ACTIVE)
+   7. GET ALL FARMS BY USER
 ========================================================== */
-router.get("/:userId", getFarmByUser);
+router.get("/user/:userId", getFarmByUser);
 
 /* ==========================================================
-   ✅ 8. FARM CRUD 
+   8. ADD FIELD
 ========================================================== */
 router.post("/", addFarmField);
+
+/* ==========================================================
+   9. SELECT CROP
+========================================================== */
 router.put("/select-crop", saveSelectedCrop);
+
+/* ==========================================================
+   10. UPDATE FIELD
+========================================================== */
 router.put("/:id", updateFieldById);
 
 /* ==========================================================
-   ✅ 9. DELETE / ARCHIVE FIELD
+   11. DELETE / ARCHIVE FIELD
 ========================================================== */
 router.delete("/:id", archiveField);
 
 /* ==========================================================
-   🔟 MARK FIELD HARVESTED
+   12. MARK HARVESTED
 ========================================================== */
 router.patch("/:id/harvest", markFieldHarvested);
 
 /* ==========================================================
-   1️⃣1️⃣ TASKS SYSTEM
+   13. TASKS SYSTEM
 ========================================================== */
 router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
