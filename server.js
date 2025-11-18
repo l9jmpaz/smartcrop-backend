@@ -73,7 +73,13 @@ app.use("/api/otp", otpRoutes);
 app.use("/api/crops", cropRoutes);
 // ✅ Health check route
 app.get("/health", (req, res) => res.json({ status: "ok" }));
-
+app.get("/metrics", (req, res) => {
+  res.json({
+    success: true,
+    activeUsers: activeUsers.size,
+    timestamp: new Date(),
+  });
+});
 // ✅ Default home
 app.get("/", (req, res) => res.send("✅ SmartCrop backend is running!"));
 
@@ -103,6 +109,22 @@ async function createDefaultAdmin() {
   }
 }
 createDefaultAdmin();
+let activeUsers = new Set();
+
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  // Track unique users by IP
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  activeUsers.add(ip);
+
+  res.on("finish", () => {
+    const processingTime = Date.now() - start;
+    console.log(`⚡ ${req.method} ${req.url} - ${processingTime}ms`);
+  });
+
+  next();
+});
 
 // ✅ Start server
 const PORT = process.env.PORT || 5000;
