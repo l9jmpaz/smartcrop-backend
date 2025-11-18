@@ -19,7 +19,7 @@ import {
 const router = express.Router();
 
 /* ==========================================================
-   ADMIN: GET ALL FARMS
+   ✅ 1. ADMIN: GET ALL FARMS
 ========================================================== */
 router.get("/", async (req, res) => {
   try {
@@ -31,57 +31,10 @@ router.get("/", async (req, res) => {
 });
 
 /* ==========================================================
-   CACHED AI
+   ✅ 2. GET ALL YIELDS (GLOBAL) — MUST BE FIRST BEFORE /:userId
 ========================================================== */
-router.get("/cached-ai/:userId", getCachedAIRecommendations);
-
-/* ==========================================================
-   COMPLETED FIELDS
-========================================================== */
-router.get("/completed/:userId", getCompletedFields);
-
-/* ==========================================================
-   FIELD DETAILS
-========================================================== */
-router.get("/:fieldId/details", getFieldDetails);
-
-/* ==========================================================
-   YIELD TREND (MUST BE ABOVE /:userId)
-========================================================== */
-router.get("/:userId/yield", getYieldTrendByUser);
-
-/* ==========================================================
-   USER FARMS (ACTIVE FIELDS)
-========================================================== */
-router.get("/:userId", getFarmByUser);
-
-/* ==========================================================
-   FARM CRUD
-========================================================== */
-router.post("/", addFarmField);
-router.put("/select-crop", saveSelectedCrop);
-router.put("/:id", updateFieldById);
-
-/* ==========================================================
-   DELETE / ARCHIVE FIELD
-========================================================== */
-router.delete("/:id", archiveField);
-
-/* ==========================================================
-   MARK FIELD HARVESTED
-========================================================== */
-router.patch("/:id/harvest", markFieldHarvested);
-
-/* ==========================================================
-   TASKS
-========================================================== */
-router.get("/tasks/:userId", getTasksByUser);
-router.post("/tasks", addTask);
-router.patch("/tasks/:id/complete", completeTask);
-// 📌 NEW: Get ALL yield records for ALL farmers
 router.get("/all/yields", async (req, res) => {
   try {
-    // Find all farmers who have farms
     const allFarms = await Farm.find({})
       .populate("userId", "username")
       .lean();
@@ -90,9 +43,8 @@ router.get("/all/yields", async (req, res) => {
 
     allFarms.forEach((farm) => {
       farm.fields?.forEach((field) => {
-        // Find the HARVEST task
-        const harvestTask = field.tasks?.find(
-          (t) => t.type?.toLowerCase().includes("harvest")
+        const harvestTask = field.tasks?.find((t) =>
+          t.type?.toLowerCase().includes("harvest")
         );
 
         if (harvestTask && harvestTask.kilos) {
@@ -120,4 +72,54 @@ router.get("/all/yields", async (req, res) => {
     });
   }
 });
+
+/* ==========================================================
+   3. CACHED AI
+========================================================== */
+router.get("/cached-ai/:userId", getCachedAIRecommendations);
+
+/* ==========================================================
+   4. COMPLETED FIELDS
+========================================================== */
+router.get("/completed/:userId", getCompletedFields);
+
+/* ==========================================================
+   5. FIELD DETAILS — MUST BE BEFORE /:userId
+========================================================== */
+router.get("/field/:fieldId/details", getFieldDetails);
+
+/* ==========================================================
+   6. USER YIELD TREND (SPECIFIC USER)
+========================================================== */
+router.get("/:userId/yield", getYieldTrendByUser);
+
+/* ==========================================================
+   7. USER FARMS
+========================================================== */
+router.get("/:userId", getFarmByUser);
+
+/* ==========================================================
+   8. FARM CRUD 
+========================================================== */
+router.post("/", addFarmField);
+router.put("/select-crop", saveSelectedCrop);
+router.put("/:id", updateFieldById);
+
+/* ==========================================================
+   9. DELETE / ARCHIVE FIELD
+========================================================== */
+router.delete("/:id", archiveField);
+
+/* ==========================================================
+   🔟 MARK FIELD HARVESTED
+========================================================== */
+router.patch("/:id/harvest", markFieldHarvested);
+
+/* ==========================================================
+   1️⃣1️⃣ TASKS
+========================================================== */
+router.get("/tasks/:userId", getTasksByUser);
+router.post("/tasks", addTask);
+router.patch("/tasks/:id/complete", completeTask);
+
 export default router;
