@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import User from "../models/User.js";
 import { uploadProfilePicture, updateUser } from "../controllers/userController.js";
+import { activeFarmers } from "../server.js";
 
 const router = express.Router();
 
@@ -112,12 +113,18 @@ router.patch("/:id/active", async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { status: "Active", lastActive: new Date() },
+      {
+        lastActive: new Date(),
+        status: "Active"
+      },
       { new: true }
     );
 
     if (!user)
       return res.status(404).json({ success: false, message: "user_not_found" });
+
+    // 🔥 UPDATE METRIC TRACKER TOO
+    activeFarmers[user._id.toString()] = Date.now();
 
     res.json({ success: true, user });
   } catch (err) {
