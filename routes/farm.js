@@ -78,5 +78,46 @@ router.patch("/:id/harvest", markFieldHarvested);
 router.get("/tasks/:userId", getTasksByUser);
 router.post("/tasks", addTask);
 router.patch("/tasks/:id/complete", completeTask);
+// 📌 NEW: Get ALL yield records for ALL farmers
+router.get("/all/yields", async (req, res) => {
+  try {
+    // Find all farmers who have farms
+    const allFarms = await Farm.find({})
+      .populate("userId", "username")
+      .lean();
 
+    const allYields = [];
+
+    allFarms.forEach((farm) => {
+      farm.fields?.forEach((field) => {
+        // Find the HARVEST task
+        const harvestTask = field.tasks?.find(
+          (t) => t.type?.toLowerCase().includes("harvest")
+        );
+
+        if (harvestTask && harvestTask.kilos) {
+          allYields.push({
+            farmerId: farm.userId?._id,
+            farmer: farm.userId?.username || "Unknown Farmer",
+            fieldName: field.fieldName,
+            crop: field.selectedCrop,
+            yield: harvestTask.kilos,
+            date: harvestTask.date || field.completedAt || new Date(),
+          });
+        }
+      });
+    });
+
+    return res.json({
+      success: true,
+      data: allYields,
+    });
+  } catch (err) {
+    console.error("❌ Error loading all yields:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching yield data",
+    });
+  }
+});
 export default router;
