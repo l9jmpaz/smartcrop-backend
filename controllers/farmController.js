@@ -292,7 +292,7 @@ export const getYieldTrendByUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // find completed fields
+    // Load completed fields
     const completed = await Farm.find({
       userId,
       archived: true,
@@ -301,28 +301,30 @@ export const getYieldTrendByUser = async (req, res) => {
     const trend = [];
 
     completed.forEach(field => {
-      const harvestTask = field.tasks.find(
-        t => t.type.toLowerCase().includes("harvest") && t.completed
+      const harvestTask = (field.tasks || []).find(t =>
+        t.type?.toLowerCase().includes("harvest") &&
+        (t.completed === true || t.completed === "true")
       );
 
       if (harvestTask) {
-        // Always use a valid date
-        const harvestedDate =
-          harvestTask.date ||
-          field.harvestDate ||
-          field.completedAt ||
-          new Date();
-
         trend.push({
           fieldName: field.fieldName,
-          crop: harvestTask.crop || field.selectedCrop || "Unknown crop",
-          kilos: harvestTask.kilos ?? 0,
-          date: harvestedDate, // fixed
+          crop: harvestTask.crop || field.selectedCrop,
+          kilos: Number(harvestTask.kilos) || 0,
+          date:
+            harvestTask.date ||
+            field.harvestDate ||
+            field.completedAt ||
+            new Date()
         });
       }
     });
 
-    res.json({ success: true, trend });
+    return res.json({
+      success: true,
+      trend
+    });
+
   } catch (err) {
     console.error("❌ getYieldTrendByUser Error:", err);
     res.status(500).json({ success: false, message: "server_error" });
