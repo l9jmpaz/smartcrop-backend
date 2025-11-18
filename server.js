@@ -35,7 +35,7 @@ import cropRoutes from "./routes/cropRoutes.js";
 
 dotenv.config();
 connectDB();
-
+export const activeFarmers = {};
 const app = express();
 
 // -----------------------------------------------------------
