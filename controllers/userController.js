@@ -58,21 +58,41 @@ export const updateUser = async (req, res) => {
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    // 🔥 CLEAN PHONE NUMBER
-    if (phone) {
-      phone = phone.toString().replace(/\s+/g, ""); // remove spaces
+    // Username
+    if (typeof username === "string") {
+      user.username = username.trim();
+    }
+
+    // Email
+    if (typeof email === "string") {
+      user.email = email.trim();
+    }
+
+    // Barangay
+    if (typeof barangay === "string") {
+      user.barangay = barangay;
+    }
+
+    // Phone
+    if (typeof phone === "string") {
+      phone = phone.replace(/\s+/g, "");
+
       if (!phone.startsWith("+63")) {
         return res.status(400).json({
           success: false,
           message: "Phone number must start with +63"
         });
       }
+
+      if (phone.length !== 13) {
+        return res.status(400).json({
+          success: false,
+          message: "Phone must be +63 followed by 10 digits"
+        });
+      }
+
       user.phone = phone;
     }
-
-    if (username) user.username = username.trim();
-    if (email) user.email = email.trim();
-    if (barangay) user.barangay = barangay;
 
     await user.save();
 
@@ -87,7 +107,7 @@ export const updateUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error",
-      error: err.message,
+      error: err.message
     });
   }
 };
