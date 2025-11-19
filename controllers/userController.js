@@ -7,33 +7,25 @@ import path from "path";
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { username, password } = req.body;
+    const { username, email, phone, barangay } = req.body;
 
     const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found." });
-    }
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
 
     if (username) user.username = username;
-
-    if (password) {
-      const hashed = await bcrypt.hash(password, 10);
-      user.password = hashed;
-    }
+    if (email) user.email = email;
+    if (phone) user.phone = phone;
+    if (barangay) user.barangay = barangay;
 
     await user.save();
 
-    res.status(200).json({
-      success: true,
-      message: "User updated successfully.",
-      user,
-    });
+    res.json({ success: true, message: "Profile updated successfully", user });
   } catch (err) {
     console.error("❌ Error updating user:", err);
     res.status(500).json({
       success: false,
-      message: "Server error while updating user.",
-      error: err.message,
+      message: "Server error while updating user",
     });
   }
 };

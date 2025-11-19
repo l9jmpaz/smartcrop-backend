@@ -123,6 +123,9 @@ router.post("/", async (req, res) => {
 // ✏ UPDATE USER INFO
 // -------------------------------
 router.put("/:id", updateUser);
+import { changePassword } from "../controllers/userController.js";
+
+router.put("/:id/password", changePassword);
 
 // -------------------------------
 // 🖼 UPLOAD PROFILE PICTURE
