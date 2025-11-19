@@ -54,6 +54,11 @@ export const updateUser = async (req, res) => {
     const { id } = req.params;
     let { username, email, phone, barangay } = req.body;
 
+    console.log("---- UPDATE USER REQUEST ----");
+    console.log("ID:", id);
+    console.log("BODY:", req.body);
+    console.log("------------------------------");
+
     const user = await User.findById(id);
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
