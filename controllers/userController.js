@@ -66,4 +66,37 @@ user.profilePicture = `/uploads/${path.basename(req.file.path)}`;
       error: err.message,
     });
   }
+
+};
+// ======================================
+// 🔐 CHANGE PASSWORD CONTROLLER
+// ======================================
+export const changePassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { oldPassword, newPassword } = req.body;
+
+    const user = await User.findById(id);
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found." });
+
+    // Check old password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch)
+      return res.status(400).json({ success: false, message: "Incorrect old password." });
+
+    // Set new password
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.password = hashed;
+
+    await user.save();
+
+    res.json({ success: true, message: "Password changed successfully." });
+  } catch (err) {
+    console.error("❌ changePassword error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Server error while changing password.",
+    });
+  }
 };
