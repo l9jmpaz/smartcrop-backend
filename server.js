@@ -142,27 +142,6 @@ cron.schedule("0 6 * * *", async () => {
 // -----------------------------------------------------------
 // 👤 Create Default Admin
 // -----------------------------------------------------------
-async function createDefaultAdmin() {
-  const exists = await User.findOne({ username: "admin" });
-  if (exists) {
-    console.log("Admin account already exists.");
-    return;
-  }
-
-  const hashedPassword = await bcrypt.hash("admin", 10);
-
-  await User.create({
-    username: "admin",
-    email: "admin@system.com",
-    phone: "+639000000000",
-    password: hashedPassword,
-    barangay: "Poblacion 1",
-    role: "admin",
-    status: "Inactive",
-  });
-
-  console.log("✅ Default admin created successfully: admin / admin");
-}createDefaultAdmin();
 
 // -----------------------------------------------------------
 // 🚀 Start Server
