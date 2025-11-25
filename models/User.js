@@ -7,6 +7,10 @@ const UserSchema = new mongoose.Schema({
   phone: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   barangay: { type: String, required: true },
+  barangayResidencyCert: {
+  type: String,
+  default: "",
+},
   profilePicture: { type: String, default: "" },
   role: { type: String, default: "user" },
   lastActive: { type: Date, default: null },

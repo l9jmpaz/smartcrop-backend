@@ -5,6 +5,9 @@ import axios from "axios";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Otp from "../models/Otp.js";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = express.Router();
 
@@ -51,61 +54,68 @@ async function sendSemaphoreOtp(phone, otpCode) {
     return false;
   }
 }
+const certStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(process.cwd(), "uploads/residency_certificates");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = file.originalname.split(".").pop();
+    cb(null, `cert_${Date.now()}.${ext}`);
+  },
+});
 
+const uploadCert = multer({ storage: certStorage });
 /* ======================================================
    REGISTER USER
 ====================================================== */
-router.post("/register", async (req, res) => {
-  try {
-    const { username, phone, password, barangay, email } = req.body;
+router.post(
+  "/register",
+  uploadCert.single("barangayResidencyCert"), // <-- FILE FIELD NAME
+  async (req, res) => {
+    try {
+      const { username, email, phone, password, barangay } = req.body;
 
-    if (!username || !phone || !password || !barangay || !email)
-      return res.status(400).json({
-        success: false,
-        message: "Missing required fields",
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Barangay Residency Certificate is required" });
+      }
+
+      // Save path relative to server
+      const certPath = `/uploads/residency_certificates/${req.file.filename}`;
+
+      // Create user
+      const user = new User({
+        username,
+        email,
+        phone,
+        password,
+        barangay,
+        barangayResidencyCert: certPath,
+        status: "Inactive",
+        isBanned: false,
       });
 
-    const existingUser = await User.findOne({
-      $or: [{ phone }, { email }],
-    });
+      await user.save();
 
-    if (existingUser)
-      return res.status(400).json({
-        success: false,
-        message:
-          existingUser.phone === phone
-            ? "Phone number already registered"
-            : "Email already registered",
+      // Response must include userId for OTP screen
+      res.status(201).json({
+        success: true,
+        message: "User registered successfully",
+        userId: user._id, // <-- Flutter uses this
       });
 
-    const hashed = await bcrypt.hash(password, 10);
-
-    const newUser = await User.create({
-      username,
-      phone,
-      email,
-      barangay,
-      password: hashed,
-      role: "user",
-      status: "Pending Verification",
-    });
-
-    await Notification.create({
-      title: "New user registered",
-      message: `Farmer ${username} registered from ${barangay}.`,
-      type: "user",
-    });
-
-    res.status(201).json({
-      success: true,
-      message: "User created. Awaiting OTP verification.",
-      userId: newUser._id,
-    });
-  } catch (err) {
-    console.error("❌ Registration error:", err);
-    res.status(500).json({ success: false, message: "Server error" });
+    } catch (err) {
+      console.error("❌ Registration error:", err);
+      res.status(500).json({
+        success: false,
+        message: err.message || "Server error",
+      });
+    }
   }
-});
+);
 
 /* ======================================================
    RESEND OTP FOR REGISTRATION

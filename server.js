@@ -115,7 +115,7 @@ app.use("/api/farm", farmRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/crops", cropRoutes);
 app.use("/api/soiltypes", soilTypeRoutes);
-
+app.use("/uploads", express.static("uploads"));
 // -----------------------------------------------------------
 // 🏠 Default Route
 // -----------------------------------------------------------
