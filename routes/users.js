@@ -152,5 +152,31 @@ router.delete("/:id", async (req, res) => {
 // -------------------------------
 // 🟢 MARK USER ACTIVE
 // -------------------------------
+// ===============================
+// 🚫 BAN / UNBAN USER (NEW ROUTE)
+// ===============================
+router.patch("/:id/ban", async (req, res) => {
+  try {
+    const { isBanned } = req.body;
 
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { isBanned: isBanned },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.json({
+      success: true,
+      message: isBanned ? "User banned" : "User unbanned",
+      data: updatedUser,
+    });
+  } catch (err) {
+    console.error("❌ Ban/Unban error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 export default router;

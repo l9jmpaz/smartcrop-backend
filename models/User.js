@@ -6,11 +6,14 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   phone: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  barangay: {type: String, required: true },
-  profilePicture: {type: String, default: ""},
+  barangay: { type: String, required: true },
+  profilePicture: { type: String, default: "" },
   role: { type: String, default: "user" },
   lastActive: { type: Date, default: null },
-status: { type: String, default: "Inactive" },
+  status: { type: String, default: "Inactive" },
+
+  // ⭐ NEW FIELD (BAN / UNBAN)
+  isBanned: { type: Boolean, default: false },
 
   // 🌾 Farm setup details
   farm: {
