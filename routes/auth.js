@@ -54,68 +54,88 @@ async function sendSemaphoreOtp(phone, otpCode) {
     return false;
   }
 }
-const certStorage = multer.diskStorage({
+/* ======================================================
+   MULTER STORAGE — 2 FILES: Residency Cert + Valid ID
+====================================================== */
+const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const dir = path.join(process.cwd(), "uploads/residency_certificates");
+    const dir = path.join(process.cwd(), "uploads/user_documents");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (req, file, cb) => {
     const ext = file.originalname.split(".").pop();
-    cb(null, `cert_${Date.now()}.${ext}`);
-  },
+    const prefix =
+      file.fieldname === "barangayResidencyCert" ? "cert" : "validid";
+    cb(null, `${prefix}_${Date.now()}.${ext}`);
+  }
 });
 
-const uploadCert = multer({ storage: certStorage });
+// Accept 2 files
+const uploadDocs = multer({ storage }).fields([
+  { name: "barangayResidencyCert", maxCount: 1 },
+  { name: "validId", maxCount: 1 }
+]);
 /* ======================================================
    REGISTER USER
 ====================================================== */
-router.post(
-  "/register",
-  uploadCert.single("barangayResidencyCert"), // <-- FILE FIELD NAME
-  async (req, res) => {
-    try {
-      const { username, email, phone, password, barangay } = req.body;
+/* ======================================================
+   REGISTER USER (NOW WITH 2 FILES)
+====================================================== */
+router.post("/register", uploadDocs, async (req, res) => {
+  try {
+    const { username, email, phone, password, barangay } = req.body;
 
-      if (!req.file) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Barangay Residency Certificate is required" });
-      }
+    const residencyCert = req.files?.barangayResidencyCert?.[0];
+    const validId = req.files?.validId?.[0];
 
-      // Save path relative to server
-      const certPath = `/uploads/residency_certificates/${req.file.filename}`;
-
-      // Create user
-      const user = new User({
-        username,
-        email,
-        phone,
-        password,
-        barangay,
-        barangayResidencyCert: certPath,
-        status: "Inactive",
-        isBanned: false,
-      });
-
-      await user.save();
-
-      // Response must include userId for OTP screen
-      res.status(201).json({
-        success: true,
-        message: "User registered successfully",
-        userId: user._id, // <-- Flutter uses this
-      });
-
-    } catch (err) {
-      console.error("❌ Registration error:", err);
-      res.status(500).json({
+    if (!residencyCert) {
+      return res.status(400).json({
         success: false,
-        message: err.message || "Server error",
+        message: "Barangay Residency Certificate is required"
       });
     }
+
+    if (!validId) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid ID is required"
+      });
+    }
+
+    // Save relative paths
+    const certPath = `/uploads/user_documents/${residencyCert.filename}`;
+    const validIdPath = `/uploads/user_documents/${validId.filename}`;
+
+    // Create User
+    const user = new User({
+      username,
+      email,
+      phone,
+      password,
+      barangay,
+      barangayResidencyCert: certPath,
+      validId: validIdPath,
+      status: "Inactive",
+      isBanned: false
+    });
+
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      userId: user._id
+    });
+  } catch (err) {
+    console.error("❌ Registration error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message || "Server error"
+    });
   }
-);
+});
+
 
 /* ======================================================
    RESEND OTP FOR REGISTRATION
