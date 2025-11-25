@@ -33,7 +33,7 @@ import activityRoutes from "./routes/activityRoutes.js";
 import otpRoutes from "./routes/otp.js";
 import cropRoutes from "./routes/cropRoutes.js";
 import soilTypeRoutes from "./routes/soilTypeRoutes.js";
-import seedRoute from "./routes/seedRoute.js";
+import seedRoutes from "./routes/seedRoutes.js";
 dotenv.config();
 connectDB();
 
@@ -116,7 +116,7 @@ app.use("/api/otp", otpRoutes);
 app.use("/api/crops", cropRoutes);
 app.use("/api/soiltypes", soilTypeRoutes);
 app.use("/uploads", express.static("uploads"));
-app.use("/seed", seedRoute);
+app.use("/seed", seedRoutes);
 // -----------------------------------------------------------
 // 🏠 Default Route
 // -----------------------------------------------------------
