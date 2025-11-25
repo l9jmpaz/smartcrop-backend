@@ -12,29 +12,23 @@ import fs from "fs";
 const router = express.Router();
 
 /* ======================================================
-   PHONE FORMAT (Semaphore requires 09XXXXXXXXX)
+    FORMAT PHONE (Semaphore requires 09XXXXXXXXX)
 ====================================================== */
 function formatPhone(phone) {
   if (!phone) return "";
   phone = phone.toString().trim();
-
-  // from +63XXXXXXXXXX → 09XXXXXXXXX
   if (phone.startsWith("+63")) return "0" + phone.substring(3);
-
-  // from 63XXXXXXXXXX → 09XXXXXXXXX
   if (phone.startsWith("63")) return "0" + phone.substring(2);
-
-  // Already correct
   return phone;
 }
 
 /* ======================================================
-   SEND OTP WITH SEMAPHORE
+    SEND OTP VIA SEMAPHORE
 ====================================================== */
 async function sendSemaphoreOtp(phone, otpCode) {
   try {
     const formattedPhone = formatPhone(phone);
-    console.log("📤 Sending OTP via Semaphore to:", formattedPhone);
+    console.log("📤 Sending OTP via Semaphore:", formattedPhone);
 
     const response = await axios.post(
       "https://api.semaphore.co/api/v4/messages",
@@ -42,42 +36,38 @@ async function sendSemaphoreOtp(phone, otpCode) {
         apikey: process.env.SEMAPHORE_API_KEY,
         number: formattedPhone,
         message: `Your SmartCrop OTP is ${otpCode}`,
-        sendername: process.env.SEMAPHORE_SENDER_ID,
+        sendername: process.env.SEMAPHORE_SENDER_ID
       },
       { headers: { "Content-Type": "application/json" } }
     );
 
-    console.log("✅ Semaphore Response:", response.data);
+    console.log("✅ Semaphore response:", response.data);
     return true;
   } catch (err) {
     console.error("❌ Semaphore Error:", err.response?.data || err.message);
     return false;
   }
 }
+
 /* ======================================================
-   MULTER STORAGE — 2 FILES: Residency Cert + Valid ID
+    MULTER STORAGE — 2 FILE UPLOADS (Cert & Valid ID)
 ====================================================== */
-
-
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination: (req, file, cb) => {
     const dir = path.join(process.cwd(), "uploads/user_documents");
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
-  filename: function (req, file, cb) {
+  filename: (req, file, cb) => {
     const ext = file.originalname.split(".").pop();
-    cb(null, file.fieldname + "_" + Date.now() + "." + ext);
+    cb(null, `${file.fieldname}_${Date.now()}.${ext}`);
   }
 });
 
 const upload = multer({ storage });
 
 /* ======================================================
-   REGISTER USER
-====================================================== */
-/* ======================================================
-   REGISTER USER (NOW WITH 2 FILES)
+    REGISTER USER — WITH 2 FILES
 ====================================================== */
 router.post(
   "/register",
@@ -89,21 +79,27 @@ router.post(
     try {
       const { username, email, phone, password, barangay } = req.body;
 
-      // REQUIRED FIELDS CHECK
-      if (!req.files["barangayResidencyCert"])
-        return res.status(400).json({ success: false, message: "Residency Certificate is required" });
+      if (!req.files["barangayResidencyCert"]) {
+        return res.status(400).json({
+          success: false,
+          message: "Residency Certificate is required"
+        });
+      }
+      if (!req.files["validId"]) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid ID is required"
+        });
+      }
 
-      if (!req.files["validId"])
-        return res.status(400).json({ success: false, message: "Valid ID is required" });
-
-      // GET PATHS
       const residencyCertPath =
-        "/uploads/user_documents/" + req.files["barangayResidencyCert"][0].filename;
+        "/uploads/user_documents/" +
+        req.files["barangayResidencyCert"][0].filename;
 
       const validIdPath =
         "/uploads/user_documents/" + req.files["validId"][0].filename;
 
-      // HASH PASSWORD
+      // 🔐 HASH PASSWORD PROPERLY
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // SAVE USER
@@ -127,7 +123,6 @@ router.post(
         message: "User registered successfully",
         userId: user._id
       });
-
     } catch (err) {
       console.error("❌ Registration error:", err);
       res.status(500).json({
@@ -139,7 +134,7 @@ router.post(
 );
 
 /* ======================================================
-   RESEND OTP FOR REGISTRATION
+    RESEND OTP
 ====================================================== */
 router.post("/resend-otp", async (req, res) => {
   try {
@@ -155,20 +150,21 @@ router.post("/resend-otp", async (req, res) => {
       userId: user._id,
       otpCode,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-      lastSentAt: new Date(),
+      lastSentAt: new Date()
     });
 
     const sent = await sendSemaphoreOtp(phone, otpCode);
+
     if (!sent)
       return res.status(500).json({
         success: false,
-        message: "Failed to send SMS",
+        message: "Failed to send SMS"
       });
 
     res.json({
       success: true,
       message: "OTP sent successfully.",
-      otpId: otp._id,
+      otpId: otp._id
     });
   } catch (err) {
     console.error("❌ Resend OTP error:", err);
@@ -177,7 +173,7 @@ router.post("/resend-otp", async (req, res) => {
 });
 
 /* ======================================================
-   VERIFY REGISTRATION OTP
+    VERIFY REGISTRATION OTP
 ====================================================== */
 router.post("/verify-otp", async (req, res) => {
   try {
@@ -198,13 +194,13 @@ router.post("/verify-otp", async (req, res) => {
 
     res.json({ success: true, message: "Account verified!" });
   } catch (err) {
-    console.error("❌ Verify error:", err);
+    console.error("❌ Verify OTP error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
 /* ======================================================
-   SEND RESET PASSWORD OTP
+    SEND RESET PASSWORD OTP
 ====================================================== */
 router.post("/send-reset-otp", async (req, res) => {
   try {
@@ -219,20 +215,20 @@ router.post("/send-reset-otp", async (req, res) => {
     const otp = await Otp.create({
       userId: user._id,
       otpCode,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000)
     });
 
     const sent = await sendSemaphoreOtp(phone, otpCode);
     if (!sent)
       return res.status(500).json({
         success: false,
-        message: "Failed to send reset OTP",
+        message: "Failed to send reset OTP"
       });
 
     res.json({
       success: true,
       otpId: otp._id,
-      message: "Reset OTP sent",
+      message: "Reset OTP sent"
     });
   } catch (err) {
     console.error("❌ Reset OTP error:", err);
@@ -241,7 +237,7 @@ router.post("/send-reset-otp", async (req, res) => {
 });
 
 /* ======================================================
-   VERIFY RESET PASSWORD OTP
+    VERIFY RESET OTP
 ====================================================== */
 router.post("/verify-reset-otp", async (req, res) => {
   try {
@@ -267,29 +263,23 @@ router.post("/verify-reset-otp", async (req, res) => {
 });
 
 /* ======================================================
-   LOGIN
+    LOGIN
 ====================================================== */
 router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
 
     const user = await User.findOne({ $or: [{ phone }, { username }] });
+
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    // 🚫 BAN CHECK (THIS IS THE ONLY NEW CODE)
-    if (user.isBanned === true) {
+    if (user.isBanned)
       return res.status(403).json({
         success: false,
         banned: true,
-        message: "Your account has been banned. Please contact the management."
+        message: "Your account has been banned."
       });
-    }
-
-    if (user.status === "Pending Verification")
-      return res
-        .status(403)
-        .json({ success: false, message: "Please verify your account first" });
 
     const match = await bcrypt.compare(password, user.password);
     if (!match)
@@ -303,7 +293,6 @@ router.post("/login", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // ⭐ SAME SUCCESS RESPONSE YOU ALREADY USE
     res.json({
       success: true,
       token,
@@ -318,30 +307,22 @@ router.post("/login", async (req, res) => {
         isBanned: user.isBanned ?? false
       }
     });
-
   } catch (err) {
     console.error("❌ Login error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
+/* ======================================================
+    CHANGE PASSWORD
+====================================================== */
 router.post("/change-password", async (req, res) => {
   try {
     const { phone, newPassword } = req.body;
 
-    if (!phone || !newPassword)
-      return res.status(400).json({
-        success: false,
-        message: "Missing phone or new password"
-      });
-
     const user = await User.findOne({ phone });
-
     if (!user)
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
+      return res.status(404).json({ success: false, message: "User not found" });
 
     const hashed = await bcrypt.hash(newPassword, 10);
 
@@ -351,7 +332,6 @@ router.post("/change-password", async (req, res) => {
       success: true,
       message: "Password updated successfully"
     });
-
   } catch (err) {
     console.error("❌ change-password error:", err);
     res.status(500).json({ success: false, message: "Server error" });
