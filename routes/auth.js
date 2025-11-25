@@ -123,7 +123,7 @@ router.post("/register", uploadDocs, async (req, res) => {
       username,
       email,
       phone,
-      password,
+      password: hashedPassword,
       barangay,
       barangayResidencyCert: certPath,
       validId: validIdPath,
