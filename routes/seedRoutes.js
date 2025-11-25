@@ -1,5 +1,5 @@
 import express from "express";
-import seed from "../seed/seedUsers.js";
+import seed from "../seed/seedUser.js";
 const router = express.Router();
 
 router.get("/run-seed", async (req, res) => {
