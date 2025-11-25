@@ -71,6 +71,17 @@ const storage = multer.diskStorage({
   }
 });
 
+const idStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(process.cwd(), "uploads/valid_ids");
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = file.originalname.split(".").pop();
+    cb(null, `validID_${Date.now()}.${ext}`);
+  },
+});
 // Accept 2 files
 const uploadDocs = multer({ storage }).fields([
   { name: "barangayResidencyCert", maxCount: 1 },
@@ -104,8 +115,8 @@ router.post("/register", uploadDocs, async (req, res) => {
     }
 
     // Save relative paths
-    const certPath = `/uploads/user_documents/${residencyCert.filename}`;
-    const validIdPath = `/uploads/user_documents/${validId.filename}`;
+    const certPath = `/uploads/residency_cetificates/${residencyCert.filename}`;
+    const validIdPath = `/uploads/valid_ids/${validId.filename}`;
 
     // Create User
     const user = new User({
