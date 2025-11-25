@@ -117,7 +117,7 @@ router.post("/register", uploadDocs, async (req, res) => {
     // Save relative paths
     const certPath = `/uploads/residency_cetificates/${residencyCert.filename}`;
     const validIdPath = `/uploads/valid_ids/${validId.filename}`;
-
+    const hashedPassword = await bcrypt.hash(password, 10);
     // Create User
     const user = new User({
       username,
