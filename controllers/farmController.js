@@ -55,7 +55,7 @@ export const getFieldDetails = async (req, res) => {
     res.json({
       success: true,
       field: farm,
-      tasks: farm.tasks || [],
+      tasks: farm.tasks.sort((a, b) => new Date(a.date) - new Date(b.date)),
     });
 
   } catch (err) {
@@ -178,7 +178,15 @@ export const getTasksByUser = async (req, res) => {
   try {
     const farms = await Farm.find({ userId: req.params.userId });
 
-    const all = farms.flatMap((f) => f.tasks);
+    let all = farms.flatMap(f =>
+      (f.tasks || []).map(t => ({
+        ...t.toObject(),
+        fieldId: f._id
+      }))
+    );
+
+    // Sort by soonest date first
+    all = all.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     res.json({ success: true, tasks: all });
   } catch (err) {
