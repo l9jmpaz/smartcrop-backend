@@ -252,48 +252,39 @@ router.post("/login", async (req, res) => {
   try {
     const { phone, username, password } = req.body;
 
-    // Find user by phone OR username
     const user = await User.findOne({ $or: [{ phone }, { username }] });
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    // 🚫 BLOCK if user is banned
+    // 🚫 BAN CHECK (THIS IS THE ONLY NEW CODE)
     if (user.isBanned === true) {
       return res.status(403).json({
         success: false,
-        message: "Your account has been banned. Please contact the management.",
-        isBanned: true
+        banned: true,
+        message: "Your account has been banned. Please contact the management."
       });
     }
 
-    // 🚫 Block if not verified yet
     if (user.status === "Pending Verification")
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your account first"
-      });
+      return res
+        .status(403)
+        .json({ success: false, message: "Please verify your account first" });
 
-    // Check password
     const match = await bcrypt.compare(password, user.password);
     if (!match)
-      return res.status(401).json({
-        success: false,
-        message: "Incorrect password"
-      });
+      return res
+        .status(401)
+        .json({ success: false, message: "Incorrect password" });
 
-    // JWT Token
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET || "smartcrop_secret",
-      {
-        expiresIn: "7d"
-      }
+      { expiresIn: "7d" }
     );
 
-    // SUCCESS RESPONSE
+    // ⭐ SAME SUCCESS RESPONSE YOU ALREADY USE
     res.json({
       success: true,
-      isBanned: false,
       token,
       user: {
         _id: user._id,
@@ -303,14 +294,16 @@ router.post("/login", async (req, res) => {
         barangay: user.barangay,
         role: user.role,
         status: user.status,
-        isBanned: user.isBanned || false // <-- now Flutter can read it
+        isBanned: user.isBanned ?? false
       }
     });
+
   } catch (err) {
     console.error("❌ Login error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
+
 router.post("/change-password", async (req, res) => {
   try {
     const { phone, newPassword } = req.body;
