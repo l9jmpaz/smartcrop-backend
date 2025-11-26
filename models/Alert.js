@@ -1,11 +1,13 @@
 import mongoose from "mongoose";
 
 const AlertSchema = new mongoose.Schema({
-  message: { type: String, required: true },
-  severity: { type: String, default: "Critical" }, // Critical, Warning, Info
-  affects: { type: String, default: "System" },
-  timestamp: { type: Date, default: Date.now },
-  resolved: { type: Boolean, default: false }
+  message: String,
+  severity: String,
+  affects: String,
+  resolved: { type: Boolean, default: false },
+  resolvedAt: { type: Date },
+  resolvedBy: { type: String, default: "System" },
+  timestamp: { type: Date, default: Date.now }
 });
 
 export default mongoose.model("Alert", AlertSchema);

@@ -33,7 +33,11 @@ router.put("/:id/resolve", async (req, res) => {
   try {
     const alert = await Alert.findByIdAndUpdate(
       req.params.id,
-      { resolved: true },
+      { 
+        resolved: true, 
+        resolvedAt: new Date(),
+        resolvedBy: "System"
+      },
       { new: true }
     );
 
