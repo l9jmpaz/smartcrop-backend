@@ -3,6 +3,19 @@ import Alert from "../models/Alert.js";
 
 const router = express.Router();
 
+// 📌 GET ALL Alerts (Active + Resolved)
+router.get("/", async (req, res) => {
+  try {
+    const alerts = await Alert.find().sort({ timestamp: -1 });
+    res.json(alerts);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to load alerts",
+      error: err.message
+    });
+  }
+});
 // 📌 GET Active Critical Alerts
 router.get("/active", async (req, res) => {
   const alerts = await Alert.find({ resolved: false }).sort({ timestamp: -1 });

@@ -34,7 +34,7 @@ import otpRoutes from "./routes/otp.js";
 import cropRoutes from "./routes/cropRoutes.js";
 import soilTypeRoutes from "./routes/soilTypeRoutes.js";
 import fastRoute from "./routes/adminFastRoute.js";
-import alerRoutes from "./routes/alertRoutes.js";
+import alertRoutes from "./routes/alertRoutes.js";
 dotenv.config();
 connectDB();
 
@@ -118,7 +118,7 @@ app.use("/api/crops", cropRoutes);
 app.use("/api/soiltypes", soilTypeRoutes);
 app.use("/uploads", express.static("uploads"));
 app.use("/api", fastRoute);
-app.use("/api/alerts", alerRoutes);
+app.use("/api/alerts", alertRoutes);
 
 // -----------------------------------------------------------
 // 🏠 Default Route

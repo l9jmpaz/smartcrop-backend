@@ -3,7 +3,7 @@ import Alert from "../models/Alert.js";
 
 // ⬇️ PUT YOUR RENDER MONGODB CONNECTION STRING HERE ⬇️
 mongoose.connect(
-  "YOUR_RENDER_MONGODB_URI",
+  "mongodb+srv://l9jmpaz_db_user:Decten19@cluster0.w0lhhob.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
   {
     useNewUrlParser: true,
     useUnifiedTopology: true,
