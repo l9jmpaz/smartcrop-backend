@@ -118,21 +118,29 @@ router.post("/", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to create user" });
   }
 });
+// in your users route file (replace existing /:id/ban handler)
 router.patch("/:id/ban", async (req, res) => {
   try {
-    const { isBanned } = req.body;
+    // accept isBanned boolean and optional banReason
+    const { isBanned = true, banReason = "" } = req.body;
+
+    const update = {
+      isBanned: !!isBanned,
+      banReason: banReason ? String(banReason).trim() : "",
+      bannedAt: isBanned ? new Date() : null,
+    };
 
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
-      { isBanned: isBanned },
+      update,
       { new: true }
-    );
+    ).select("-password");
 
     if (!updatedUser) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: isBanned ? "User banned" : "User unbanned",
       data: updatedUser,

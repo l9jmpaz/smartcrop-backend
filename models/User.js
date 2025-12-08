@@ -7,21 +7,17 @@ const UserSchema = new mongoose.Schema({
   phone: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   barangay: { type: String, required: true },
-  barangayResidencyCert: {
-  type: String,
-  default: "",
- },
-  validId: {
-  type: String,
-  required: true
-},
+  barangayResidencyCert: { type: String, default: "" },
+  validId: { type: String, required: true },
   profilePicture: { type: String, default: "" },
   role: { type: String, default: "user" },
   lastActive: { type: Date, default: null },
   status: { type: String, default: "Inactive" },
 
-  // ⭐ NEW FIELD (BAN / UNBAN)
+  // ⭐ BAN / UNBAN FIELDS
   isBanned: { type: Boolean, default: false },
+  banReason: { type: String, default: "" },   // <-- NEW
+  bannedAt: { type: Date, default: null },    // <-- NEW
 
   // 🌾 Farm setup details
   farm: {
