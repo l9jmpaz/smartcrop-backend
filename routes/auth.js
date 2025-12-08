@@ -275,12 +275,16 @@ router.post("/login", async (req, res) => {
     if (!user)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    if (user.isBanned)
-      return res.status(403).json({
-        success: false,
-        banned: true,
-        message: "Your account has been banned."
-      });
+    // 🚫 Check if user is banned
+if (user.isBanned === true) {
+  return res.status(403).json({
+    success: false,
+    isBanned: true,
+    message: "Your account has been banned.",
+    banReason: user.banReason || ""
+  });
+}
+
 
     const match = await bcrypt.compare(password, user.password);
     if (!match)
